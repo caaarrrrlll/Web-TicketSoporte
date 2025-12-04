@@ -1,25 +1,18 @@
-import Image from "next/image";
 import { Ticket } from "@/types/ticket";
 import { TicketCard } from "@/components/TicketCard";
 
-export default function Home() {
-  return(
-    <main className="min-h-screen bg-gray-100">
-      <header className="bg-slate-900 text-white p-4 mb-6">
-        <h1 className="text-2xl font-bold">Panel de Tickets de Soporte</h1>
-        <p className="text-sm text-gray-300">
-          Visualizacion de tickets
-        </p>
-      </header>
-
-      <section className="max-w-4xl mx-auto px-4 pb-10">
-        {ticketsMock.map((t) => (
-          <TicketCard key={t.id} ticket={t} />
-        ))}
-      </section>
-
-    </main>  
-  )
+export default function HomePage() {
+  return (
+    <div>
+      <div className="w-full bg-slate-900 text-white px-6 py-4 mb-6 -ml-6 -mr-6">
+        <h1 className="text-2xl font-bold">Panel de Soporte</h1>
+        <p className="text-sm text-slate-300">Visualización de tickets</p>
+      </div>
+      {ticketsMock.map((t) => (
+        <TicketCard key={t.id} ticket={t} />
+      ))}
+    </div>
+  );
 }
 
 const ticketsMock: Ticket[] = [
