@@ -79,7 +79,7 @@ export default function TicketDetailPage() {
           {ticket.titulo}
         </h1>
 
-        <p className="text-gray-700 mb-4">{ticket.descripcion}</p>
+        <div className="scroll-fade max-h-40 pr-3 text-gray-700 leading-relaxed text-sm mb-4">{ticket.descripcion}</div>
 
         <div className="grid grid-cols-2 gap-4 text-sm mb-6 text-gray-700">
           <div><b>Estado:</b> {ticket.estado}</div>

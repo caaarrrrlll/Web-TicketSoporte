@@ -5,11 +5,24 @@
   --foreground: #171717;
 }
 
-@theme inline {
+@theme {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
+  --animate-vertical-marquee: vertical-marquee 10s linear infinite;
+
+  @keyframes vertical-marquee {
+    0% {
+      transform: translateY(0%);
+    }
+    50% {
+      transform: translateY(calc(-100% + 3.5rem)); 
+    }
+    100% {
+      transform: translateY(0%);
+    }
+  }
 }
 
 @media (prefers-color-scheme: dark) {
@@ -23,4 +36,30 @@ body {
   background: var(--background);
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
+}
+
+.scroll-fade {
+  position: relative;
+  overflow-y: auto;
+  scroll-behavior: smooth;
+}
+
+.scroll-fade::before {
+  content: "";
+  position: sticky;
+  top: 0;
+  height: 16px;
+  display: block;
+  background: linear-gradient(to bottom, white, transparent);
+  z-index: 10;
+}
+
+.scroll-fade::after {
+  content: "";
+  position: sticky;
+  bottom: 0;
+  height: 16px;
+  display: block;
+  background: linear-gradient(to top, white, transparent);
+  z-index: 10;
 }
