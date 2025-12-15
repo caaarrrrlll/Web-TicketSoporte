@@ -18,24 +18,23 @@ export default function CrearTicketPage() {
     const user = JSON.parse(localStorage.getItem("sessionUser") || "{}");
 
     const nuevoTicket: Ticket = {
-  id: Date.now(),
-  titulo,
-  descripcion,
-  prioridad,
-  estado: "pendiente",
-  creadoPor: user.name || "usuario",
-  fechaCreacion: new Date().toLocaleString(),
-  historial: [
-    {
-      fecha: new Date().toLocaleString(),
-      accion: "Ticket creado",
-      usuario: user.name || "usuario",
-    },
-  ],
-  comentarios: [],
-};
-
-
+      id: Date.now(),
+      titulo,
+      descripcion,
+      prioridad,
+      estado: "pendiente",
+      creadoPor: user.name || "usuario",
+      fechaCreacion: new Date().toLocaleString(),
+      leido: false,
+      comentarios: [],
+      historial: [
+        {
+          fecha: new Date().toLocaleString(),
+          accion: "Ticket creado",
+          usuario: user.name || "usuario",
+        },
+      ],
+    };
     addTicket(nuevoTicket);
     router.push("/ticket");
   }
@@ -52,7 +51,7 @@ export default function CrearTicketPage() {
 
         <label className="text-sm font-medium text-gray-700">Título</label>
         <input
-          className="border p-3 rounded-lg w-full mt-2 mb-4"
+          className="border p-3 rounded w-full mb-4 text-gray-800 focus:ring-2 focus:ring-blue-500 outline-none"
           value={titulo}
           onChange={(e) => setTitulo(e.target.value)}
           required
@@ -60,7 +59,7 @@ export default function CrearTicketPage() {
 
         <label className="text-sm font-medium text-gray-700">Descripción</label>
         <textarea
-          className="border p-3 rounded-lg w-full mt-2 mb-4 min-h-[120px]"
+          className="border p-3 rounded-lg w-full mt-2 text-gray-800 mb-4 min-h-[120px]"
           value={descripcion}
           onChange={(e) => setDescripcion(e.target.value)}
           required
@@ -68,7 +67,7 @@ export default function CrearTicketPage() {
 
         <label className="text-sm font-medium text-gray-700">Prioridad</label>
         <select
-          className="border p-3 rounded-lg w-full mt-2 mb-6"
+          className="border p-3 rounded-lg text-gray-800 w-full mt-2 mb-6"
           value={prioridad}
           onChange={(e) => setPrioridad(e.target.value as any)}>
             

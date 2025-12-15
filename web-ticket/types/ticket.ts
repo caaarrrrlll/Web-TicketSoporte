@@ -23,4 +23,5 @@ export interface Ticket {
   fechaCreacion: string;
   historial: TicketHistory[];
   comentarios: TicketComment[];
+  leido: boolean;
 }

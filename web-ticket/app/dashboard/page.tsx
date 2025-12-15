@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Ticket } from "@/types/ticket";
 import { getTickets } from "@/utils/ticketStorage";
@@ -10,6 +10,9 @@ export default function DashboardPage() {
   const router = useRouter();
   const [user, setUser] = useState<any>(null);
   const [tickets, setTickets] = useState<Ticket[]>([]);
+  const [animate, setAnimate] = useState(false);
+
+  const prevCriticosRef = useRef<number>(0);
 
   useEffect(() => {
     const stored = localStorage.getItem("sessionUser");
@@ -20,57 +23,116 @@ export default function DashboardPage() {
 
     setUser(JSON.parse(stored));
     setTickets(getTickets());
-    const interval = setInterval(() => {
-    setTickets(getTickets());
-}, 5000);
 
-return () => clearInterval(interval);
+    const interval = setInterval(() => {
+      setTickets((prev) => {
+        const next = getTickets();
+
+        // animación si cambió el total de tickets
+        if (next.length !== prev.length) {
+          setAnimate(true);
+          setTimeout(() => setAnimate(false), 250);
+        }
+
+        return next;
+      });
+    }, 5000);
+
+    return () => clearInterval(interval);
   }, [router]);
+
+  const activos = useMemo(
+    () => tickets.filter((t) => t.estado !== "resuelto"),
+    [tickets]
+  );
+
+  const criticos = useMemo(
+    () => tickets.filter((t) => t.prioridad === "alta" && t.estado !== "resuelto"),
+    [tickets]
+  );
+
+  const resueltos = useMemo(
+    () => tickets.filter((t) => t.estado === "resuelto"),
+    [tickets]
+  );
+
+  // 🔔 sonido si suben críticos
+  useEffect(() => {
+    const prev = prevCriticosRef.current;
+    if (criticos.length > prev) {
+      // beep simple sin archivo
+      try {
+        const ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = "sine";
+        osc.frequency.value = 880;
+        gain.gain.value = 0.05;
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.start();
+        setTimeout(() => {
+          osc.stop();
+          ctx.close();
+        }, 180);
+      } catch {}
+    }
+    prevCriticosRef.current = criticos.length;
+  }, [criticos.length]);
+
+  // último activo real (por id)
+  const ultimoActivo = activos.slice().sort((a, b) => b.id - a.id)[0] || null;
+
   if (!user) return null;
 
-  const activos = tickets.filter(t => t.estado !== "resuelto");
-  const criticos = tickets.filter(t => t.prioridad === "alta" && t.estado !== "resuelto");
-  const resueltos = tickets.filter(t => t.estado === "resuelto");
-  const ultimoActivo = activos.length > 0 ? activos[0] : null;
   return (
     <div className="max-w-5xl mx-auto">
-      <div className="mb-8 bg-white border rounded-xl shadow p-8">
-        <h1 className="text-3xl font-semibold text-gray-800">
-          Bienvenido, {user.name}
-        </h1>
-        <p className="text-sm text-gray-600">
-          Rol: <b>{user.role}</b>
-        </p>
+      <div className="mb-8 bg-white border border-gray-200 rounded-xl shadow p-8">
+        <h1 className="text-3xl font-semibold text-gray-800">Bienvenido, {user.name}</h1>
+        <p className="text-sm text-gray-600">Rol: <b>{user.role}</b></p>
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-8">
-        <div className="bg-white border rounded-xl p-5">
+        {/* Activos */}
+        <div
+          onClick={() => router.push("/ticket?estado=activo")}
+          className="bg-white border border-gray-200 rounded-xl p-5 cursor-pointer hover:shadow-md transition"
+        >
           <p className="text-xs text-gray-600">Tickets activos</p>
-          <p className="text-3xl font-bold text-blue-600">
+          <p className={`text-3xl font-bold text-blue-600 transition-transform duration-300 ${animate ? "scale-110" : "scale-100"}`}>
             {activos.length}
           </p>
         </div>
-        <div className="bg-white border rounded-xl p-5">
+
+        {/* Críticos */}
+        <div
+          onClick={() => router.push("/ticket?prioridad=alta")}
+          className="bg-white border border-gray-200 rounded-xl p-5 cursor-pointer hover:shadow-md transition"
+        >
           <p className="text-xs text-gray-600">Críticos</p>
-          <p className="text-3xl font-bold text-red-600">
+          <p className={`text-3xl font-bold text-red-600 transition-transform duration-300 ${animate ? "scale-110" : "scale-100"}`}>
             {criticos.length}
           </p>
         </div>
-        <div className="bg-white border rounded-xl p-5">
+
+        {/* Resueltos */}
+        <div
+          onClick={() => router.push("/ticket?estado=resuelto")}
+          className="bg-white border border-gray-200 rounded-xl p-5 cursor-pointer hover:shadow-md transition"
+        >
           <p className="text-xs text-gray-600">Resueltos</p>
-          <p className="text-3xl font-bold text-green-600">
+          <p className={`text-3xl font-bold text-green-600 transition-transform duration-300 ${animate ? "scale-110" : "scale-100"}`}>
             {resueltos.length}
           </p>
         </div>
       </div>
 
       <div className="mb-4 flex justify-between items-center">
-        <h2 className="text-xl font-semibold text-gray-800">
-          Último ticket activo
-        </h2>
+        <h2 className="text-xl font-semibold text-gray-800">Último ticket activo</h2>
         <button
           onClick={() => router.push("/ticket")}
-          className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700">
+          className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700"
+        >
           Ver todos
         </button>
       </div>
@@ -78,7 +140,7 @@ return () => clearInterval(interval);
       {ultimoActivo ? (
         <TicketCard ticket={ultimoActivo} />
       ) : (
-        <div className="bg-white border rounded-xl p-6 text-gray-600">
+        <div className="bg-white border border-gray-200 rounded-xl p-6 text-gray-700">
           No hay tickets activos
         </div>
       )}

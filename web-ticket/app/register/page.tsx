@@ -35,21 +35,21 @@ export default function RegisterPage() {
         <input
           type="text"
           placeholder="Nombre"
-          className="border p-2 rounded w-full mb-3"
+          className="border p-3 rounded w-full mb-4 text-gray-800 focus:ring-2 focus:ring-blue-500 outline-none"
           onChange={(e) => setName(e.target.value)}
           required
         />
         <input
           type="email"
           placeholder="Correo"
-          className="border p-2 rounded w-full mb-3"
+          className="border p-3 rounded w-full mb-4 text-gray-800 focus:ring-2 focus:ring-blue-500 outline-none"
           onChange={(e) => setEmail(e.target.value)}
           required
         />
         <input
           type="password"
           placeholder="Contraseña"
-          className="border p-2 rounded w-full mb-4"
+          className="border p-3 rounded w-full mb-4 text-gray-800 focus:ring-2 focus:ring-blue-500 outline-none"
           onChange={(e) => setPassword(e.target.value)}
           required
         />

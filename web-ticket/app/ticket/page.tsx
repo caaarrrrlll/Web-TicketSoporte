@@ -34,10 +34,10 @@ export default function TicketPage() {
 
         <div className="flex gap-4">
           <select
-            className="border p-2 rounded"
+            className="border p-2 rounded text-gray-800"
             value={estado}
-            onChange={(e) => setEstado(e.target.value)}
-          >
+            onChange={(e) => setEstado(e.target.value)}>
+              
             <option value="todos">Todos</option>
             <option value="pendiente">Pendiente</option>
             <option value="en_progreso">En progreso</option>
@@ -45,10 +45,10 @@ export default function TicketPage() {
           </select>
 
           <select
-            className="border p-2 rounded"
+            className="border p-2 rounded text-gray-800"
             value={prioridad}
-            onChange={(e) => setPrioridad(e.target.value)}
-          >
+            onChange={(e) => setPrioridad(e.target.value)}>
+
             <option value="todas">Todas</option>
             <option value="alta">Alta</option>
             <option value="media">Media</option>

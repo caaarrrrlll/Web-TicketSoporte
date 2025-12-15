@@ -38,24 +38,30 @@ export function TicketCard({ ticket }: { ticket: Ticket }) {
         },
         ...(Array.isArray(ticket.historial) ? ticket.historial : []),
       ],
+      comentarios: Array.isArray(ticket.comentarios) ? ticket.comentarios : [],
     };
 
     updateTicket(actualizado);
-    window.location.reload(); 
+    window.location.reload();
   }
 
   return (
     <div
       onClick={() => router.push(`/ticket/${ticket.id}`)}
-      className="border border-gray-200 rounded-xl p-5 mb-4 shadow-sm bg-white hover:shadow-md cursor-pointer transition">
+      className={`border rounded-xl p-5 mb-4 shadow-sm bg-white hover:shadow-md cursor-pointer transition
+        ${ticket.leido ? "border-gray-200" : "border-blue-400 ring-1 ring-blue-100"}
+      `}>
       <div className="flex items-start justify-between gap-4">
         <div>
-          <h3 className="font-semibold text-lg text-gray-800">
+          <h3 className="font-semibold text-lg text-gray-800 flex items-center gap-2">
             {ticket.titulo}
+            {!ticket.leido && (
+              <span className="text-xs font-semibold text-blue-700">
+                • Nuevo
+              </span>
+            )}
           </h3>
-          <p className="text-sm text-gray-700 mt-1">
-            {ticket.descripcion}
-          </p>
+          <p className="text-sm text-gray-700 mt-1">{ticket.descripcion}</p>
         </div>
 
         <div className="flex flex-col items-end gap-2">
@@ -69,11 +75,17 @@ export function TicketCard({ ticket }: { ticket: Ticket }) {
             {ticket.estado.replace("_", " ")}
           </span>
 
+          {ticket.estado === "resuelto" && (
+            <span className="text-[10px] font-bold px-2 py-1 rounded-full bg-emerald-600 text-white animate-pulse">
+              RESUELTO
+            </span>
+          )}
+
           <select
             value={ticket.estado}
             onClick={(e) => e.stopPropagation()}
             onChange={cambiarEstado}
-            className="text-xs border rounded px-2 py-1">
+            className="text-xs border rounded px-2 py-1 text-gray-800">
             <option value="pendiente">Pendiente</option>
             <option value="en_progreso">En progreso</option>
             <option value="resuelto">Resuelto</option>
@@ -81,15 +93,17 @@ export function TicketCard({ ticket }: { ticket: Ticket }) {
         </div>
       </div>
 
-      <div className="mt-4 grid grid-cols-1 sm:grid-cols-3 gap-2 text-xs text-gray-500">
+      <div className="mt-4 grid grid-cols-1 sm:grid-cols-3 gap-2 text-xs text-gray-600">
         <span>
-          <b>Creado por:</b> {ticket.creadoPor}
+          <span className="font-medium text-gray-700">Creado por:</span>{" "}
+          {ticket.creadoPor}
         </span>
         <span>
-          <b>Fecha:</b> {ticket.fechaCreacion}
+          <span className="font-medium text-gray-700">Fecha:</span>{" "}
+          {ticket.fechaCreacion}
         </span>
         <span>
-          <b>ID:</b> #{ticket.id}
+          <span className="font-medium text-gray-700">ID:</span> #{ticket.id}
         </span>
       </div>
     </div>
