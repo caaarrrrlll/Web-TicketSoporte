@@ -7,13 +7,13 @@ const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
   title: "WebTicket Soporte",
-  description: "Panel web para gestión de tickets de soporte",
+  description: "Sistema de tickets",
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="es">
-      <body className={inter.className + " bg-gray-100"}>
+      <body className={inter.className}>
         <LayoutClient>{children}</LayoutClient>
       </body>
     </html>

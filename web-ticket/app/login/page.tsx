@@ -1,20 +1,18 @@
 "use client";
 
-import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { useState } from "react";
 
 export default function LoginPage() {
   const router = useRouter();
-
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
 
-  function handleLogin(e: React.FormEvent) {
+  function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
 
     const users = JSON.parse(localStorage.getItem("users") || "[]");
-
     const user = users.find(
       (u: any) => u.email === email && u.password === password
     );
@@ -24,28 +22,28 @@ export default function LoginPage() {
       return;
     }
 
-    // Guardar sesión
     localStorage.setItem("sessionUser", JSON.stringify(user));
-
-    router.push("/"); // Ir al panel
+    router.push("/dashboard");
   }
 
   return (
-    <div className="flex items-center justify-center min-h-screen bg-gray-100">
+    <div className="min-h-screen flex items-center justify-center bg-gray-100">
       <form
-        onSubmit={handleLogin}
-        className="bg-white shadow-md p-6 rounded w-80"
+        className="bg-white p-8 shadow-lg rounded-xl w-96 border border-gray-200"
+        onSubmit={handleSubmit}
       >
-        <h1 className="text-xl font-bold mb-4">Iniciar sesión</h1>
+        <h1 className="text-2xl font-semibold mb-6 text-gray-800">
+          Iniciar Sesión
+        </h1>
 
         {error && (
-          <p className="text-red-500 text-sm mb-2">{error}</p>
+          <p className="text-red-500 mb-3 text-sm font-medium">{error}</p>
         )}
 
         <input
           type="email"
           placeholder="Correo"
-          className="border p-2 w-full mb-3 rounded"
+          className="border p-3 rounded w-full mb-4 text-gray-800 focus:ring-2 focus:ring-blue-500 outline-none"
           value={email}
           onChange={(e) => setEmail(e.target.value)}
           required
@@ -54,21 +52,20 @@ export default function LoginPage() {
         <input
           type="password"
           placeholder="Contraseña"
-          className="border p-2 w-full mb-4 rounded"
+          className="border p-3 rounded w-full mb-4 text-gray-800 focus:ring-2 focus:ring-blue-500 outline-none"
           value={password}
           onChange={(e) => setPassword(e.target.value)}
           required
         />
 
-        <button className="bg-blue-600 text-white w-full py-2 rounded hover:bg-blue-700">
+        <button className="bg-blue-600 text-white w-full py-3 rounded-lg hover:bg-blue-700 transition">
           Entrar
         </button>
 
         <p
           onClick={() => router.push("/register")}
-          className="text-blue-600 text-sm text-center mt-3 hover:underline cursor-pointer"
-        >
-          Crear cuenta
+          className="text-blue-600 text-sm text-center mt-4 cursor-pointer hover:underline">
+          Crear una cuenta
         </p>
       </form>
     </div>

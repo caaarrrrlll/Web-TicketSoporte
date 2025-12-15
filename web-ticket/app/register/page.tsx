@@ -1,7 +1,7 @@
 "use client";
 
-import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { useState } from "react";
 
 export default function RegisterPage() {
   const router = useRouter();
@@ -11,73 +11,56 @@ export default function RegisterPage() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
 
-  function handleRegister(e: React.FormEvent) {
+  function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
 
     let users = JSON.parse(localStorage.getItem("users") || "[]");
 
-    const exists = users.some((u: any) => u.email === email);
-    if (exists) {
+    if (users.some((u: any) => u.email === email)) {
       setError("Este correo ya está registrado");
       return;
     }
 
-    const newUser = { name, email, password };
-    users.push(newUser);
-
+    users.push({ name, email, password });
     localStorage.setItem("users", JSON.stringify(users));
 
     router.push("/login");
   }
 
   return (
-    <div className="flex items-center justify-center min-h-screen bg-gray-100">
-      <form
-        onSubmit={handleRegister}
-        className="bg-white shadow-md p-6 rounded w-80"
-      >
-        <h1 className="text-xl font-bold mb-4">Crear cuenta</h1>
-
-        {error && (
-          <p className="text-red-500 text-sm mb-2">{error}</p>
-        )}
-
+    <div className="min-h-screen flex items-center justify-center">
+      <form className="bg-white p-6 shadow rounded w-80" onSubmit={handleSubmit}>
+        <h1 className="text-2xl font-semibold text-gray-800 mb-6">Crear Cuenta</h1>
+        {error && <p className="text-red-500 mb-2 text-sm">{error}</p>}
         <input
           type="text"
-          placeholder="Nombre completo"
-          className="border p-2 w-full mb-3 rounded"
-          value={name}
+          placeholder="Nombre"
+          className="border p-2 rounded w-full mb-3"
           onChange={(e) => setName(e.target.value)}
           required
         />
-
         <input
           type="email"
           placeholder="Correo"
-          className="border p-2 w-full mb-3 rounded"
-          value={email}
+          className="border p-2 rounded w-full mb-3"
           onChange={(e) => setEmail(e.target.value)}
           required
         />
-
         <input
           type="password"
           placeholder="Contraseña"
-          className="border p-2 w-full mb-4 rounded"
-          value={password}
+          className="border p-2 rounded w-full mb-4"
           onChange={(e) => setPassword(e.target.value)}
           required
         />
-
-        <button className="bg-green-600 text-white w-full py-2 rounded hover:bg-green-700">
+        <button className="bg-green-600 text-white w-full py-3 rounded-lg hover:bg-green-700 transition">
           Registrarse
         </button>
 
         <p
           onClick={() => router.push("/login")}
-          className="text-blue-600 text-sm text-center mt-3 hover:underline cursor-pointer"
-        >
-          Ya tengo cuenta
+          className="text-center text-blue-600 text-sm mt-3 cursor-pointer">
+          Ya tengo una cuenta
         </p>
       </form>
     </div>

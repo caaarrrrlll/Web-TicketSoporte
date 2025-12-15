@@ -1,58 +1,80 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import Link from "next/link";
+import { usePathname, useRouter } from "next/navigation";
 import { useSidebar } from "@/context/SidebarContext";
 
 const navItems = [
-  { label: "Dashboard", href: "#", icon: "🏠" },
-  { label: "Tickets", href: "/", icon: "🎫" },
-  { label: "Crear ticket", href: "#", icon: "➕" },
+  { label: "Dashboard", href: "/dashboard" },
+  { label: "Tickets", href: "/ticket" },
+  { label: "Crear ticket", href: "/create" },
 ];
 
 export function Sidebar() {
+  const pathname = usePathname();
+  const router = useRouter();
   const { isOpen, toggleSidebar } = useSidebar();
+
+  const [user, setUser] = useState<any>(null);
+
+  useEffect(() => {
+    const stored = localStorage.getItem("sessionUser");
+    if (stored) {
+      setUser(JSON.parse(stored));
+    }
+  }, []);
 
   return (
     <aside
       className={`bg-slate-900 text-gray-100 flex flex-col transition-all duration-300
-      ${isOpen ? "w-64" : "w-16"} overflow-hidden`}>
- 
+      ${isOpen ? "w-64" : "w-16"} overflow-hidden`}
+    >
       <div className="flex items-center justify-between px-4 py-5 border-b border-slate-800">
-        {isOpen ? (
-          <h1 className="text-xl font-bold">WebTicket</h1>
-        ) : (
-          <span></span>
-        )}
+        {isOpen && <h1 className="text-xl font-bold">WebTicket</h1>}
 
         <button
           onClick={toggleSidebar}
-          className="p-2 hover:bg-slate-800 rounded-md">
+          className="p-2 hover:bg-slate-800 rounded-md"
+        >
           ☰
         </button>
       </div>
 
       <nav className="flex-1 px-2 py-4 space-y-1">
-        {navItems.map((item) => (
-          <Link
-            key={item.label}
-            href={item.href}
-            className="flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium hover:bg-slate-800">
-            <span>{item.icon}</span>
-            {isOpen && <span>{item.label}</span>}
-          </Link>
-        ))}
+        {navItems.map((item) => {
+          const active = pathname === item.href;
+          return (
+            <Link
+              key={item.label}
+              href={item.href}
+              className={`block rounded-md px-3 py-2 text-sm font-medium transition
+                ${active ? "bg-slate-800" : "hover:bg-slate-800"}`}
+              title={item.label}
+            >
+              {isOpen ? item.label : item.label.charAt(0)}
+            </Link>
+          );
+        })}
       </nav>
 
-      <div className="px-4 py-4 border-t border-slate-800 text-xs text-slate-300 flex items-center gap-2">
-        <div className="w-8 h-8 rounded-full bg-slate-700 flex items-center justify-center">
-          CM
-        </div>
-        {isOpen && (
-          <div>
-            <div className="font-semibold">Carlos Moreta</div>
-            <div>Administrador</div>
-          </div>
+      <div className="px-4 py-4 border-t border-slate-800 text-xs text-slate-300">
+        {isOpen && user && (
+          <>
+            <div className="font-semibold text-gray-100">{user.name}</div>
+            <div>{user.role}</div>
+          </>
         )}
+
+        <button
+          onClick={() => {
+            localStorage.removeItem("sessionUser");
+            router.push("/login");
+          }}
+          className={`mt-3 w-full text-left text-red-200 hover:text-red-100 hover:bg-slate-800 rounded-md px-3 py-2 transition`}
+        >
+          {isOpen ? "Cerrar sesión" : "X"}
+        </button>
       </div>
     </aside>
   );
