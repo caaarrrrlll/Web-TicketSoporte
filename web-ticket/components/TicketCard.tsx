@@ -4,7 +4,12 @@ import { useRouter } from "next/navigation";
 import { Ticket } from "@/types/ticket";
 import { updateTicket } from "@/utils/ticketStorage";
 
-export function TicketCard({ ticket }: { ticket: Ticket }) {
+interface TicketCardProps {
+  ticket: Ticket;
+  onDelete?: () => void; // 👈 ahora es válido
+}
+
+export function TicketCard({ ticket, onDelete }: TicketCardProps) {
   const router = useRouter();
 
   const badgePrioridad =
@@ -38,7 +43,9 @@ export function TicketCard({ ticket }: { ticket: Ticket }) {
         },
         ...(Array.isArray(ticket.historial) ? ticket.historial : []),
       ],
-      comentarios: Array.isArray(ticket.comentarios) ? ticket.comentarios : [],
+      comentarios: Array.isArray(ticket.comentarios)
+        ? ticket.comentarios
+        : [],
     };
 
     updateTicket(actualizado);
@@ -50,7 +57,8 @@ export function TicketCard({ ticket }: { ticket: Ticket }) {
       onClick={() => router.push(`/ticket/${ticket.id}`)}
       className={`border rounded-xl p-5 mb-4 shadow-sm bg-white hover:shadow-md cursor-pointer transition
         ${ticket.leido ? "border-gray-200" : "border-blue-400 ring-1 ring-blue-100"}
-      `}>
+      `}
+    >
       <div className="flex items-start justify-between gap-4">
         <div>
           <h3 className="font-semibold text-lg text-gray-800 flex items-center gap-2">
@@ -61,17 +69,18 @@ export function TicketCard({ ticket }: { ticket: Ticket }) {
               </span>
             )}
           </h3>
-          <p className="text-sm text-gray-700 mt-1">{ticket.descripcion}</p>
+
+          <p className="text-sm text-gray-700 mt-1">
+            {ticket.descripcion}
+          </p>
         </div>
 
         <div className="flex flex-col items-end gap-2">
-          <span
-            className={`text-xs font-semibold px-3 py-1 rounded-full ${badgePrioridad}`}>
+          <span className={`text-xs font-semibold px-3 py-1 rounded-full ${badgePrioridad}`}>
             {ticket.prioridad.toUpperCase()}
           </span>
 
-          <span
-            className={`text-xs font-medium px-3 py-1 rounded-full ${badgeEstado}`}>
+          <span className={`text-xs font-medium px-3 py-1 rounded-full ${badgeEstado}`}>
             {ticket.estado.replace("_", " ")}
           </span>
 
@@ -85,11 +94,27 @@ export function TicketCard({ ticket }: { ticket: Ticket }) {
             value={ticket.estado}
             onClick={(e) => e.stopPropagation()}
             onChange={cambiarEstado}
-            className="text-xs border rounded px-2 py-1 text-gray-800">
+            className="text-xs border rounded px-2 py-1 text-gray-800"
+          >
             <option value="pendiente">Pendiente</option>
             <option value="en_progreso">En progreso</option>
             <option value="resuelto">Resuelto</option>
           </select>
+
+          {/* 🗑️ ELIMINAR */}
+          {onDelete && (
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                if (confirm("¿Eliminar este ticket?")) {
+                  onDelete();
+                }
+              }}
+              className="text-xs text-red-600 hover:underline"
+            >
+              Eliminar
+            </button>
+          )}
         </div>
       </div>
 

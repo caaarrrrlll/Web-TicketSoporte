@@ -12,6 +12,7 @@ export default function DashboardPage() {
   const [tickets, setTickets] = useState<Ticket[]>([]);
   const [animate, setAnimate] = useState(false);
 
+  // para detectar nuevos críticos
   const prevCriticosRef = useRef<number>(0);
 
   useEffect(() => {
@@ -28,7 +29,6 @@ export default function DashboardPage() {
       setTickets((prev) => {
         const next = getTickets();
 
-        // animación si cambió el total de tickets
         if (next.length !== prev.length) {
           setAnimate(true);
           setTimeout(() => setAnimate(false), 250);
@@ -47,7 +47,10 @@ export default function DashboardPage() {
   );
 
   const criticos = useMemo(
-    () => tickets.filter((t) => t.prioridad === "alta" && t.estado !== "resuelto"),
+    () =>
+      tickets.filter(
+        (t) => t.prioridad === "alta" && t.estado !== "resuelto"
+      ),
     [tickets]
   );
 
@@ -56,50 +59,53 @@ export default function DashboardPage() {
     [tickets]
   );
 
-  // 🔔 sonido si suben críticos
+  // 🔔 sonido solo si suben críticos
   useEffect(() => {
     const prev = prevCriticosRef.current;
     if (criticos.length > prev) {
-      // beep simple sin archivo
       try {
-        const ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
+        const ctx = new (window.AudioContext ||
+          (window as any).webkitAudioContext)();
         const osc = ctx.createOscillator();
-        const gain = ctx.createGain();
-        osc.type = "sine";
         osc.frequency.value = 880;
-        gain.gain.value = 0.05;
-        osc.connect(gain);
-        gain.connect(ctx.destination);
+        osc.connect(ctx.destination);
         osc.start();
-        setTimeout(() => {
-          osc.stop();
-          ctx.close();
-        }, 180);
+        setTimeout(() => osc.stop(), 180);
       } catch {}
     }
     prevCriticosRef.current = criticos.length;
   }, [criticos.length]);
 
-  // último activo real (por id)
-  const ultimoActivo = activos.slice().sort((a, b) => b.id - a.id)[0] || null;
+  const ultimoActivo =
+    activos.slice().sort((a, b) => b.id - a.id)[0] || null;
 
   if (!user) return null;
 
   return (
     <div className="max-w-5xl mx-auto">
+      {/* BIENVENIDA */}
       <div className="mb-8 bg-white border border-gray-200 rounded-xl shadow p-8">
-        <h1 className="text-3xl font-semibold text-gray-800">Bienvenido, {user.name}</h1>
-        <p className="text-sm text-gray-600">Rol: <b>{user.role}</b></p>
+        <h1 className="text-3xl font-semibold text-gray-800">
+          Bienvenido, {user.name}
+        </h1>
+        <p className="text-sm text-gray-600">
+          Rol: <b>{user.role}</b>
+        </p>
       </div>
 
+      {/* MÉTRICAS */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-8">
         {/* Activos */}
         <div
-          onClick={() => router.push("/ticket?estado=activo")}
+          onClick={() => router.push("/ticket?estado=pendiente")}
           className="bg-white border border-gray-200 rounded-xl p-5 cursor-pointer hover:shadow-md transition"
         >
           <p className="text-xs text-gray-600">Tickets activos</p>
-          <p className={`text-3xl font-bold text-blue-600 transition-transform duration-300 ${animate ? "scale-110" : "scale-100"}`}>
+          <p
+            className={`text-3xl font-bold text-blue-600 transition-transform duration-300 ${
+              animate ? "scale-110" : "scale-100"
+            }`}
+          >
             {activos.length}
           </p>
         </div>
@@ -110,7 +116,11 @@ export default function DashboardPage() {
           className="bg-white border border-gray-200 rounded-xl p-5 cursor-pointer hover:shadow-md transition"
         >
           <p className="text-xs text-gray-600">Críticos</p>
-          <p className={`text-3xl font-bold text-red-600 transition-transform duration-300 ${animate ? "scale-110" : "scale-100"}`}>
+          <p
+            className={`text-3xl font-bold text-red-600 transition-transform duration-300 ${
+              animate ? "scale-110" : "scale-100"
+            }`}
+          >
             {criticos.length}
           </p>
         </div>
@@ -121,14 +131,22 @@ export default function DashboardPage() {
           className="bg-white border border-gray-200 rounded-xl p-5 cursor-pointer hover:shadow-md transition"
         >
           <p className="text-xs text-gray-600">Resueltos</p>
-          <p className={`text-3xl font-bold text-green-600 transition-transform duration-300 ${animate ? "scale-110" : "scale-100"}`}>
+          <p
+            className={`text-3xl font-bold text-green-600 transition-transform duration-300 ${
+              animate ? "scale-110" : "scale-100"
+            }`}
+          >
             {resueltos.length}
           </p>
         </div>
       </div>
 
+      {/* ÚLTIMO TICKET */}
       <div className="mb-4 flex justify-between items-center">
-        <h2 className="text-xl font-semibold text-gray-800">Último ticket activo</h2>
+        <h2 className="text-xl font-semibold text-gray-800">
+          Último ticket activo
+        </h2>
+
         <button
           onClick={() => router.push("/ticket")}
           className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700"

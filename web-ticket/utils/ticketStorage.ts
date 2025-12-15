@@ -27,3 +27,17 @@ export function updateTicket(updated: Ticket) {
   );
   saveTickets(tickets);
 }
+
+export function deleteTicket(id: number) {
+  const tickets = getTickets().filter((t) => t.id !== id);
+  localStorage.setItem("tickets", JSON.stringify(tickets));
+}
+
+export function countUnreadTickets(): number {
+  const tickets: Ticket[] = JSON.parse(
+    localStorage.getItem("tickets") || "[]"
+  );
+
+  return tickets.filter((t) => !t.leido).length;
+}
+
