@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { createTicketAction } from "@/utils/actions/ticketActions"; 
+import { createTicketAction } from "@/actions/ticketActions"; 
 import { Ticket } from "@/types/ticket";
 import { motion } from "framer-motion";
 import emailjs from "@emailjs/browser"; 
@@ -35,7 +35,7 @@ export default function CrearTicketPage() {
   }
 
   async function sendEmailAlert(ticket: Ticket) {
-    const SERVICE_ID = "service_0v2vmdd";   
+    const SERVICE_ID = "service_som947r";   
     const TEMPLATE_ID = "template_pjxzm3s"; 
     const PUBLIC_KEY = "HxSntOEo44paa0rZl";   
 
@@ -50,8 +50,9 @@ export default function CrearTicketPage() {
 
     try {
       await emailjs.send(SERVICE_ID, TEMPLATE_ID, templateParams, PUBLIC_KEY);
+      console.log("✅ Correo de alerta enviado correctamente");
     } catch (error) {
-      console.error("Error al enviar email:", error);
+      console.error("❌ Error al enviar email:", error);
     }
   }
 
@@ -71,7 +72,7 @@ export default function CrearTicketPage() {
     } catch {}
 
     const nuevoTicket: Ticket = {
-      id: 0, 
+      id: 0, // La base de datos generará el ID real
       titulo,
       descripcion,
       prioridad,
@@ -89,12 +90,17 @@ export default function CrearTicketPage() {
       ],
     };
 
+    // 3. Enviar correo si es Alta prioridad
     if (prioridad === "alta") {
+        // No usamos await para no bloquear la interfaz mientras se envía el correo
         sendEmailAlert(nuevoTicket);
     }
 
     try {
+      // 4. Guardar en Base de Datos Supabase
       await createTicketAction(nuevoTicket);
+      
+      // Redirigir
       router.push("/ticket");
     } catch (error) {
       console.error("Error al guardar:", error);
@@ -133,8 +139,11 @@ export default function CrearTicketPage() {
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.4 }}
-      className="max-w-2xl mx-auto">
+      className="max-w-2xl mx-auto"
+    >
       <div className="bg-white border border-gray-200 rounded-2xl shadow-xl overflow-hidden">
+        
+        {/* HEADER */}
         <div className={`p-6 text-white transition-colors duration-300 ${prioridad === 'alta' ? 'bg-red-600' : 'bg-gradient-to-r from-blue-600 to-indigo-600'}`}>
           <h1 className="text-2xl font-bold flex items-center gap-2">
             <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4v16m8-8H4"></path></svg>
@@ -148,6 +157,8 @@ export default function CrearTicketPage() {
         </div>
 
         <form onSubmit={handleSubmit} className="p-8 space-y-6">
+
+          {/* TITULO */}
           <div className="space-y-2">
             <label className="text-sm font-semibold text-gray-700 flex items-center gap-2">
               <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path></svg>
@@ -161,6 +172,8 @@ export default function CrearTicketPage() {
               required
             />
           </div>
+
+          {/* DESCRIPCION */}
           <div className="space-y-2">
             <label className="text-sm font-semibold text-gray-700 flex items-center gap-2">
               <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 6h16M4 12h16M4 18h7"></path></svg>
@@ -174,6 +187,8 @@ export default function CrearTicketPage() {
               required
             />
           </div>
+
+          {/* PRIORIDAD */}
           <div className="space-y-2">
             <label className="text-sm font-semibold text-gray-700 flex items-center gap-2">
               <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg>
@@ -187,7 +202,8 @@ export default function CrearTicketPage() {
                   className={`
                     cursor-pointer rounded-xl border p-3 flex flex-col items-center justify-center gap-1 transition-all duration-200
                     ${prioridad === p.id ? p.activeClass : `border-gray-200 bg-white hover:border-gray-300`}
-                  `}>
+                  `}
+                >
                   <span className="text-2xl">{p.emoji}</span>
                   <span className={`text-sm font-semibold ${prioridad === p.id ? '' : 'text-gray-600'}`}>
                     {p.label}
@@ -196,6 +212,8 @@ export default function CrearTicketPage() {
               ))}
             </div>
           </div>
+
+          {/* BOTON */}
           <motion.button
             whileHover={{ scale: 1.01 }}
             whileTap={{ scale: 0.98 }}
@@ -208,7 +226,8 @@ export default function CrearTicketPage() {
                   ? "bg-red-600 hover:bg-red-700 text-white shadow-red-500/30"
                   : "bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white"
               }
-            `}>
+            `}
+          >
             {isSubmitting ? (
               <span className="flex items-center justify-center gap-2">
                 <svg className="animate-spin h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
@@ -221,6 +240,7 @@ export default function CrearTicketPage() {
               prioridad === 'alta' ? "CREAR TICKET CRÍTICO" : "Crear Ticket"
             )}
           </motion.button>
+
         </form>
       </div>
     </motion.div>
