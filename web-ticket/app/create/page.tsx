@@ -2,9 +2,10 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { addTicket } from "@/utils/ticketStorage";
+import { createTicketAction } from "@/utils/actions/ticketActions"; 
 import { Ticket } from "@/types/ticket";
-import { motion } from "framer-motion"; // Importamos Framer Motion
+import { motion } from "framer-motion";
+import emailjs from "@emailjs/browser"; 
 
 export default function CrearTicketPage() {
   const router = useRouter();
@@ -14,38 +15,95 @@ export default function CrearTicketPage() {
   const [prioridad, setPrioridad] = useState<"alta" | "media" | "baja">("media");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    setIsSubmitting(true);
-
-    // Simulamos un pequeño retraso para que se vea la animación de carga
-    setTimeout(() => {
-      const user = JSON.parse(localStorage.getItem("sessionUser") || "{}");
-
-      const nuevoTicket: Ticket = {
-        id: Date.now(),
-        titulo,
-        descripcion,
-        prioridad,
-        estado: "pendiente",
-        creadoPor: user.name || "usuario",
-        fechaCreacion: new Date().toLocaleString(),
-        leido: false,
-        comentarios: [],
-        historial: [
-          {
-            fecha: new Date().toLocaleString(),
-            accion: "Ticket creado",
-            usuario: user.name || "usuario",
-          },
-        ],
-      };
-      addTicket(nuevoTicket);
-      router.push("/ticket");
-    }, 600);
+  function playAlertSound() {
+    const ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
+    const playBeep = (startTime: number, freq: number) => {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.type = "square";
+      osc.frequency.value = freq;
+      osc.start(startTime);
+      osc.stop(startTime + 0.1);
+      gain.gain.setValueAtTime(0.1, startTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, startTime + 0.1);
+    };
+    const now = ctx.currentTime;
+    playBeep(now, 880);       
+    playBeep(now + 0.15, 880); 
   }
 
-  // Configuración visual de las prioridades para el selector
+  async function sendEmailAlert(ticket: Ticket) {
+    const SERVICE_ID = "service_0v2vmdd";   
+    const TEMPLATE_ID = "template_pjxzm3s"; 
+    const PUBLIC_KEY = "HxSntOEo44paa0rZl";   
+
+    const templateParams = {
+      to_name: "Admin",
+      from_name: ticket.creadoPor,
+      titulo: ticket.titulo,
+      message: ticket.descripcion,
+      prioridad: ticket.prioridad.toUpperCase(),
+      fecha: ticket.fechaCreacion,
+    };
+
+    try {
+      await emailjs.send(SERVICE_ID, TEMPLATE_ID, templateParams, PUBLIC_KEY);
+    } catch (error) {
+      console.error("Error al enviar email:", error);
+    }
+  }
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    setIsSubmitting(true);
+    if (prioridad === "alta") {
+      playAlertSound();
+    }
+
+    let createdBy = "Usuario Web";
+    try {
+        const userLocal = JSON.parse(localStorage.getItem("sessionUser") || "{}");
+        if (userLocal.name || userLocal.full_name) {
+            createdBy = userLocal.name || userLocal.full_name;
+        }
+    } catch {}
+
+    const nuevoTicket: Ticket = {
+      id: 0, 
+      titulo,
+      descripcion,
+      prioridad,
+      estado: "pendiente",
+      creadoPor: createdBy, 
+      fechaCreacion: new Date().toLocaleString(),
+      leido: false,
+      comentarios: [],
+      historial: [
+        {
+          fecha: new Date().toLocaleString(),
+          accion: "Ticket creado",
+          usuario: createdBy,
+        },
+      ],
+    };
+
+    if (prioridad === "alta") {
+        sendEmailAlert(nuevoTicket);
+    }
+
+    try {
+      await createTicketAction(nuevoTicket);
+      router.push("/ticket");
+    } catch (error) {
+      console.error("Error al guardar:", error);
+      alert("Hubo un error al guardar el ticket en la base de datos.");
+    } finally {
+      setIsSubmitting(false);
+    }
+  }
+
   const prioridadesConfig = [
     { 
       id: "baja", 
@@ -75,24 +133,21 @@ export default function CrearTicketPage() {
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.4 }}
-      className="max-w-2xl mx-auto"
-    >
+      className="max-w-2xl mx-auto">
       <div className="bg-white border border-gray-200 rounded-2xl shadow-xl overflow-hidden">
-        
-        {/* HEADER DECORATIVO */}
-        <div className="bg-gradient-to-r from-blue-600 to-indigo-600 p-6 text-white">
+        <div className={`p-6 text-white transition-colors duration-300 ${prioridad === 'alta' ? 'bg-red-600' : 'bg-gradient-to-r from-blue-600 to-indigo-600'}`}>
           <h1 className="text-2xl font-bold flex items-center gap-2">
             <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4v16m8-8H4"></path></svg>
             Nuevo Ticket
           </h1>
-          <p className="text-blue-100 text-sm mt-1">
-            Describe el problema detalladamente para ayudarte mejor.
+          <p className="text-blue-50 text-sm mt-1">
+            {prioridad === 'alta' 
+              ? "⚠️ ALERTA CRÍTICA: Se notificará a los administradores inmediatamente." 
+              : "Describe el problema detalladamente para ayudarte mejor."}
           </p>
         </div>
 
         <form onSubmit={handleSubmit} className="p-8 space-y-6">
-
-          {/* CAMPO TÍTULO */}
           <div className="space-y-2">
             <label className="text-sm font-semibold text-gray-700 flex items-center gap-2">
               <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path></svg>
@@ -106,8 +161,6 @@ export default function CrearTicketPage() {
               required
             />
           </div>
-
-          {/* CAMPO DESCRIPCIÓN */}
           <div className="space-y-2">
             <label className="text-sm font-semibold text-gray-700 flex items-center gap-2">
               <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 6h16M4 12h16M4 18h7"></path></svg>
@@ -121,8 +174,6 @@ export default function CrearTicketPage() {
               required
             />
           </div>
-
-          {/* SELECTOR DE PRIORIDAD VISUAL (GRID) */}
           <div className="space-y-2">
             <label className="text-sm font-semibold text-gray-700 flex items-center gap-2">
               <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg>
@@ -136,8 +187,7 @@ export default function CrearTicketPage() {
                   className={`
                     cursor-pointer rounded-xl border p-3 flex flex-col items-center justify-center gap-1 transition-all duration-200
                     ${prioridad === p.id ? p.activeClass : `border-gray-200 bg-white hover:border-gray-300`}
-                  `}
-                >
+                  `}>
                   <span className="text-2xl">{p.emoji}</span>
                   <span className={`text-sm font-semibold ${prioridad === p.id ? '' : 'text-gray-600'}`}>
                     {p.label}
@@ -146,8 +196,6 @@ export default function CrearTicketPage() {
               ))}
             </div>
           </div>
-
-          {/* BOTÓN DE SUBMIT ANIMADO */}
           <motion.button
             whileHover={{ scale: 1.01 }}
             whileTap={{ scale: 0.98 }}
@@ -156,23 +204,23 @@ export default function CrearTicketPage() {
               w-full py-4 rounded-xl font-bold text-lg shadow-lg shadow-blue-500/20 transition-all
               ${isSubmitting 
                 ? "bg-gray-400 cursor-not-allowed text-gray-100" 
-                : "bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white"
+                : prioridad === 'alta'
+                  ? "bg-red-600 hover:bg-red-700 text-white shadow-red-500/30"
+                  : "bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white"
               }
-            `}
-          >
+            `}>
             {isSubmitting ? (
               <span className="flex items-center justify-center gap-2">
                 <svg className="animate-spin h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                   <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                   <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                 </svg>
-                Guardando...
+                {prioridad === 'alta' ? "Notificando y Guardando..." : "Guardando..."}
               </span>
             ) : (
-              "Crear Ticket"
+              prioridad === 'alta' ? "CREAR TICKET CRÍTICO" : "Crear Ticket"
             )}
           </motion.button>
-
         </form>
       </div>
     </motion.div>
