@@ -33,11 +33,5 @@ export function deleteTicket(id: number) {
   localStorage.setItem("tickets", JSON.stringify(tickets));
 }
 
-export function countUnreadTickets(): number {
-  const tickets: Ticket[] = JSON.parse(
-    localStorage.getItem("tickets") || "[]"
-  );
 
-  return tickets.filter((t) => !t.leido).length;
-}
 
