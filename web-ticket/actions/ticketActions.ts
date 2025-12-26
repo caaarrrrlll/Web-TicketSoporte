@@ -26,6 +26,7 @@ export async function getTicketsAction(): Promise<Ticket[]> {
     fechaCreacion: new Date(t.created_at).toLocaleString(), 
     historial: t.history || [],
     comentarios: t.comments || [],
+    imageUrl: t.image_url,
     leido: true 
   }))
 }
@@ -43,7 +44,8 @@ export async function createTicketAction(ticket: Ticket) {
     creator_name: ticket.creadoPor,
     history: ticket.historial,
     comments: ticket.comentarios,
-    user_id: user.id 
+    user_id: user.id,
+    image_url: ticket.imageUrl 
   })
   if (error) throw new Error(error.message)
   

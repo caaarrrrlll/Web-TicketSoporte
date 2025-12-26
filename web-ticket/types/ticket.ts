@@ -24,4 +24,5 @@ export interface Ticket {
   historial: TicketHistory[];
   comentarios: TicketComment[];
   leido: boolean;
+  imageUrl?: string;
 }

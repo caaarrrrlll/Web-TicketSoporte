@@ -18,8 +18,7 @@ export async function createClient() {
               cookieStore.set(name, value, options)
             )
           } catch {
-            // Esto puede fallar si estamos en un componente de servidor,
-            // pero no pasa nada, se ignora.
+
           }
         },
       },
