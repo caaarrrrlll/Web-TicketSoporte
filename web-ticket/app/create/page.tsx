@@ -3,16 +3,10 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { createTicketAction } from "@/actions/ticketActions"; 
+import { sendEmailAction } from "@/actions/emailAction"; 
 import { Ticket } from "@/types/ticket";
 import { motion } from "framer-motion";
-import emailjs from "@emailjs/browser"; 
 import { createClient } from "@/utils/supabase/client"; 
-
-try { 
-  emailjs.init("HxSntOEo44paa0rZl"); 
-} catch(e) {
-  console.log("EmailJS init warning:", e);
-}
 
 export default function CreateTicketPage() {
   const router = useRouter();
@@ -23,6 +17,7 @@ export default function CreateTicketPage() {
   const [prioridad, setPrioridad] = useState<"alta" | "media" | "baja">("media");
   const [archivo, setArchivo] = useState<File | null>(null); 
   const [isSubmitting, setIsSubmitting] = useState(false);
+
 
   function playAlertSound() {
     const ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
@@ -43,40 +38,13 @@ export default function CreateTicketPage() {
     playBeep(now + 0.15, 880); 
   }
 
-  async function sendEmailAlert(ticket: Ticket) {
-    const SERVICE_ID = "service_0v2vmdd";   
-    const TEMPLATE_ID = "template_pjxzm3s"; 
-    const PUBLIC_KEY = "HxSntOEo44paa0rZl";   
-
-    const templateParams = {
-      to_name: "Admin",
-      from_name: ticket.creadoPor,
-      titulo: ticket.titulo,
-      message: ticket.descripcion,
-      prioridad: ticket.prioridad.toUpperCase(),
-      fecha: ticket.fechaCreacion,
-    };
-
-    try {
-      await emailjs.send(SERVICE_ID, TEMPLATE_ID, templateParams, PUBLIC_KEY);
-      console.log("✅ Correo enviado correctamente");
-    } catch (error) {
-      console.error("❌ Error envío email (Revisa AdBlock):", error);
-    }
-  }
-
   async function uploadImage(file: File): Promise<string | null> {
     try {
       const fileExt = file.name.split('.').pop();
       const fileName = `${Date.now()}.${fileExt}`; 
       const filePath = `${fileName}`;
-
-      const { error: uploadError } = await supabase.storage
-        .from('tickets') 
-        .upload(filePath, file);
-
+      const { error: uploadError } = await supabase.storage.from('tickets').upload(filePath, file);
       if (uploadError) throw uploadError;
-
       const { data } = supabase.storage.from('tickets').getPublicUrl(filePath);
       return data.publicUrl;
     } catch (error) {
@@ -119,16 +87,29 @@ export default function CreateTicketPage() {
       imageUrl: uploadedImageUrl 
     };
 
-    if (prioridad === "alta") {
-        sendEmailAlert(nuevoTicket);
-    }
-
     try {
       await createTicketAction(nuevoTicket);
+
+      if (prioridad === "alta") {
+        const linkPlataforma = typeof window !== 'undefined' ? `${window.location.origin}/ticket` : 'http://localhost:3000/ticket';
+        
+        await sendEmailAction({
+          to: "ingeniero.semijunior@gasintec.com", 
+          subject: `🚨 ALERTA CRÍTICA: ${titulo}`,
+          ticketData: {
+            titulo,
+            descripcion,
+            prioridad: prioridad.toUpperCase(),
+            creadoPor: createdBy,
+            link: linkPlataforma
+          }
+        });
+      }
+
       router.push("/ticket");
     } catch (error) {
-      console.error("Error al guardar:", error);
-      alert("Error al guardar ticket.");
+      console.error("Error general:", error);
+      alert("Error al procesar el ticket.");
     } finally {
       setIsSubmitting(false);
     }
@@ -141,87 +122,48 @@ export default function CreateTicketPage() {
   ];
 
   return (
-    <motion.div 
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-      className="max-w-2xl mx-auto">
+    <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="max-w-2xl mx-auto">
       <div className="bg-white border-2 border-gray-300 rounded-2xl shadow-xl overflow-hidden">
-        
         <div className={`p-6 text-white transition-colors duration-300 ${prioridad === 'alta' ? 'bg-red-600' : 'bg-gradient-to-r from-blue-700 to-indigo-700'}`}>
           <h1 className="text-2xl font-bold flex items-center gap-2">
-            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>
-            Crear Ticket
+            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4v16m8-8H4"></path></svg>
+            Crear Ticket Corporativo
           </h1>
           <p className="text-blue-50 text-sm mt-1 font-medium">
-            {prioridad === 'alta' ? "⚠️ ALERTA CRÍTICA" : "Adjunta capturas si es necesario."}
+            {prioridad === 'alta' ? "⚠️ ALERTA CRÍTICA: Se notificará a gerencia." : "Reporte de incidencia regular."}
           </p>
         </div>
 
         <form onSubmit={handleSubmit} className="p-8 space-y-6">
           <div className="space-y-2">
-            <label className="text-base font-bold text-gray-900">Título del problema</label>
-            <input 
-              className="w-full p-4 bg-white border-2 border-gray-300 rounded-xl text-gray-900 placeholder-gray-600 focus:border-blue-600 focus:ring-0 outline-none transition-all font-medium"
-              placeholder="Ej: Error al cargar imágenes..." 
-              value={titulo} 
-              onChange={(e) => setTitulo(e.target.value)} 
-              required 
-            />
+            <label className="text-base font-bold text-gray-900">Título</label>
+            <input className="w-full p-4 bg-white border-2 border-gray-300 rounded-xl text-gray-900 placeholder-gray-600 focus:border-blue-600 font-medium outline-none" placeholder="Ej: Falla en servidor..." value={titulo} onChange={(e) => setTitulo(e.target.value)} required />
           </div>
-
           <div className="space-y-2">
-            <label className="text-base font-bold text-gray-900">Descripción detallada</label>
-            <textarea 
-              className="w-full p-4 bg-white border-2 border-gray-300 rounded-xl text-gray-900 placeholder-gray-600 focus:border-blue-600 focus:ring-0 outline-none transition-all min-h-[120px] font-medium"
-              placeholder="Explica qué pasó..." 
-              value={descripcion} 
-              onChange={(e) => setDescripcion(e.target.value)} 
-              required 
-            />
+            <label className="text-base font-bold text-gray-900">Descripción</label>
+            <textarea className="w-full p-4 bg-white border-2 border-gray-300 rounded-xl text-gray-900 placeholder-gray-600 focus:border-blue-600 font-medium outline-none min-h-[120px]" placeholder="Detalles del problema..." value={descripcion} onChange={(e) => setDescripcion(e.target.value)} required />
           </div>
-
           <div className="space-y-2">
-            <label className="text-base font-bold text-gray-900 flex items-center gap-2">
-              📸 Adjuntar Captura de Pantalla (Opcional)
-            </label>
-            <div className="border-2 border-dashed border-gray-400 rounded-xl p-6 hover:bg-gray-100 transition-colors text-center cursor-pointer relative bg-gray-50">
-                <input 
-                    type="file" 
-                    accept="image/*"
-                    onChange={(e) => setArchivo(e.target.files ? e.target.files[0] : null)}
-                    className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-                />
-                {archivo ? (
-                    <div className="text-emerald-700 font-bold flex items-center justify-center gap-2 text-lg">
-                        ✅ Imagen lista: {archivo.name}
-                    </div>
-                ) : (
-                    <div className="text-gray-700">
-                        <span className="block text-2xl mb-2">☁️</span>
-                        <span className="text-base font-medium">Haz clic aquí para subir una imagen</span>
-                    </div>
-                )}
+            <label className="text-base font-bold text-gray-900 flex items-center gap-2">📸 Evidencia (Opcional)</label>
+            <div className="border-2 border-dashed border-gray-400 rounded-xl p-6 hover:bg-gray-100 text-center cursor-pointer relative bg-gray-50">
+                <input type="file" accept="image/*" onChange={(e) => setArchivo(e.target.files ? e.target.files[0] : null)} className="absolute inset-0 w-full h-full opacity-0 cursor-pointer" />
+                {archivo ? <div className="text-emerald-700 font-bold">✅ Archivo listo: {archivo.name}</div> : <div className="text-gray-700 font-medium">Haz clic para subir imagen</div>}
             </div>
           </div>
-
           <div className="space-y-2">
-            <label className="text-base font-bold text-gray-900">Nivel de Prioridad</label>
+            <label className="text-base font-bold text-gray-900">Prioridad</label>
             <div className="grid grid-cols-3 gap-3">
               {prioridadesConfig.map((p) => (
-                <div key={p.id} onClick={() => setPrioridad(p.id as any)}
-                  className={`cursor-pointer rounded-xl border-2 p-3 flex flex-col items-center justify-center gap-1 transition-all ${prioridad === p.id ? p.activeClass : `border-gray-200 bg-white hover:border-gray-400`}`}>
+                <div key={p.id} onClick={() => setPrioridad(p.id as any)} className={`cursor-pointer rounded-xl border-2 p-3 flex flex-col items-center justify-center gap-1 ${prioridad === p.id ? p.activeClass : `border-gray-200 bg-white hover:border-gray-400`}`}>
                   <span className="text-3xl">{p.emoji}</span>
                   <span className="text-sm font-bold text-gray-900">{p.label}</span>
                 </div>
               ))}
             </div>
           </div>
-
-          <motion.button whileHover={{ scale: 1.01 }} whileTap={{ scale: 0.98 }} disabled={isSubmitting}
-            className={`w-full py-4 rounded-xl font-bold text-lg text-white shadow-lg transition-all ${isSubmitting ? "bg-gray-500" : prioridad === 'alta' ? "bg-red-700 hover:bg-red-800" : "bg-blue-700 hover:bg-blue-800"}`}>
-            {isSubmitting ? "Guardando..." : "Crear Ticket"}
+          <motion.button whileHover={{ scale: 1.01 }} whileTap={{ scale: 0.98 }} disabled={isSubmitting} className={`w-full py-4 rounded-xl font-bold text-lg text-white shadow-lg ${isSubmitting ? "bg-gray-500" : prioridad === 'alta' ? "bg-red-700" : "bg-blue-700"}`}>
+            {isSubmitting ? "Procesando..." : "Registrar Ticket"}
           </motion.button>
-
         </form>
       </div>
     </motion.div>
