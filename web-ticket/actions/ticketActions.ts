@@ -84,3 +84,44 @@ export async function deleteTicketAction(id: number) {
   revalidatePath('/ticket')
   revalidatePath('/dashboard')
 }
+
+export async function getGerenteEmailsAction() {
+  const supabase = await createClient()
+  
+  // Buscamos todos los usuarios que tengan el rol 'gerente'
+  const { data, error } = await supabase
+    .from('profiles')
+    .select('email')
+    .eq('role', 'gerente') 
+  if (error || !data) {
+    console.error("Error buscando gerentes:", error)
+    return ""
+  }
+
+  // Convertimos la lista en un texto separado por comas
+  const listaCorreos = data.map(usuario => usuario.email).join(', ')
+  
+  return listaCorreos
+}
+
+export async function getDestinatariosAction() {
+  const supabase = await createClient()
+  
+  // Buscamos usuarios cuyo rol esté en esta lista
+  const { data, error } = await supabase
+    .from('profiles')
+    .select('email')
+    .in('role', ['gerente', 'empleado']) 
+
+  if (error || !data) {
+    console.error("Error buscando destinatarios:", error)
+    return ""
+  }
+
+  const listaCorreos = data
+    .map(usuario => usuario.email)
+    .filter(email => email !== null) 
+    .join(', ')
+  
+  return listaCorreos
+}

@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { createTicketAction } from "@/actions/ticketActions"; 
+import { createTicketAction, getDestinatariosAction } from "@/actions/ticketActions"; 
 import { sendEmailAction } from "@/actions/emailAction"; 
 import { Ticket } from "@/types/ticket";
 import { motion } from "framer-motion";
@@ -17,7 +17,6 @@ export default function CreateTicketPage() {
   const [prioridad, setPrioridad] = useState<"alta" | "media" | "baja">("media");
   const [archivo, setArchivo] = useState<File | null>(null); 
   const [isSubmitting, setIsSubmitting] = useState(false);
-
 
   function playAlertSound() {
     const ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
@@ -90,20 +89,30 @@ export default function CreateTicketPage() {
     try {
       await createTicketAction(nuevoTicket);
 
+      //Si es ALTA prioridad, enviar correo a la lista dinámica
       if (prioridad === "alta") {
-        const linkPlataforma = typeof window !== 'undefined' ? `${window.location.origin}/ticket` : 'http://localhost:3000/ticket';
         
-        await sendEmailAction({
-          to: "ingeniero.semijunior@gasintec.com", 
-          subject: `🚨 ALERTA CRÍTICA: ${titulo}`,
-          ticketData: {
-            titulo,
-            descripcion,
-            prioridad: prioridad.toUpperCase(),
-            creadoPor: createdBy,
-            link: linkPlataforma
-          }
-        });
+        // Buscamos en la BD los correos de Gerentes y Empleados
+        const listaDestinatarios = await getDestinatariosAction();
+
+        if (listaDestinatarios) {
+            const linkPlataforma = typeof window !== 'undefined' ? `${window.location.origin}/ticket` : 'http://localhost:3000/ticket';
+            
+            await sendEmailAction({
+              to: listaDestinatarios, 
+              subject: `🚨 ALERTA CRÍTICA: ${titulo}`,
+              ticketData: {
+                titulo,
+                descripcion,
+                prioridad: prioridad.toUpperCase(),
+                creadoPor: createdBy,
+                link: linkPlataforma
+              }
+            });
+            console.log("✅ Correos enviados a:", listaDestinatarios);
+        } else {
+            console.warn("⚠️ No se encontraron usuarios con rol gerente o empleado.");
+        }
       }
 
       router.push("/ticket");
