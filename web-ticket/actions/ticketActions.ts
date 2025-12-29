@@ -106,12 +106,11 @@ export async function getGerenteEmailsAction() {
 
 export async function getDestinatariosAction() {
   const supabase = await createClient()
-  
   // Buscamos usuarios cuyo rol esté en esta lista
   const { data, error } = await supabase
     .from('profiles')
     .select('email')
-    .in('role', ['gerente', 'empleado']) 
+    .overlaps('role', ['gerente', 'empleado']) 
 
   if (error || !data) {
     console.error("Error buscando destinatarios:", error)

@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { getTicketsAction, addCommentAction } from "@/actions/ticketActions"; // <--- IMPORTAMOS LA NUEVA ACCIÓN
+import { getTicketsAction, addCommentAction } from "@/actions/ticketActions"; 
+import { createUserAction } from "@/actions/adminAction"; 
 import { Ticket } from "@/types/ticket";
 import { motion, AnimatePresence } from "framer-motion"; 
 import Link from "next/link";
@@ -13,6 +14,16 @@ export default function DashboardPage() {
   const [selectedTicket, setSelectedTicket] = useState<Ticket | null>(null);
   const [newComment, setNewComment] = useState("");
   const [isSendingComment, setIsSendingComment] = useState(false);
+  const [isAdmin, setIsAdmin] = useState(false);
+  const [showUserModal, setShowUserModal] = useState(false);
+  
+  const [newUserForm, setNewUserForm] = useState({
+    fullName: "",
+    email: "",
+    password: "",
+    roles: [] as string[] 
+  });
+  const [isCreatingUser, setIsCreatingUser] = useState(false);
 
   const [stats, setStats] = useState({
     total: 0,
@@ -24,6 +35,21 @@ export default function DashboardPage() {
 
   async function loadData() {
     try {
+      const supabase = createClient();
+      
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('role')
+          .eq('id', user.id)
+          .single();
+        
+        if (profile?.role && profile.role.includes('gerente')) {
+          setIsAdmin(true);
+        }
+      }
+
       const data = await getTicketsAction(); 
       const sortedData = data.sort((a: Ticket, b: Ticket) => b.id - a.id);
       setTickets(sortedData);
@@ -36,7 +62,7 @@ export default function DashboardPage() {
         criticos: data.filter(t => t.prioridad === "alta" && t.estado !== "resuelto").length
       };
       setStats(counts);
-      
+
       if (selectedTicket) {
         const updatedSelected = sortedData.find(t => t.id === selectedTicket.id);
         if (updatedSelected) setSelectedTicket(updatedSelected);
@@ -49,22 +75,12 @@ export default function DashboardPage() {
     }
   }
 
-  useEffect(() => {
-    loadData();
-  }, []);
+  useEffect(() => { loadData(); }, []);
 
   useEffect(() => {
     const supabase = createClient();
-    const channel = supabase
-      .channel('dashboard-changes')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'tickets' }, () => {
-        loadData(); 
-      })
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
+    const channel = supabase.channel('dashboard-changes').on('postgres_changes', { event: '*', schema: 'public', table: 'tickets' }, () => { loadData(); }).subscribe();
+    return () => { supabase.removeChannel(channel); };
   }, [selectedTicket]);
 
   async function handleSendComment() {
@@ -75,27 +91,39 @@ export default function DashboardPage() {
         const userLocal = JSON.parse(localStorage.getItem("sessionUser") || "{}");
         if (userLocal.name || userLocal.full_name) autor = userLocal.name || userLocal.full_name;
     } catch {}
-
-    const comentarioObj = {
-        usuario: autor,
-        mensaje: newComment,
-        fecha: new Date().toLocaleString()
-    };
-
+    const comentarioObj = { usuario: autor, mensaje: newComment, fecha: new Date().toLocaleString() };
     try {
         await addCommentAction(selectedTicket.id, comentarioObj);
         setNewComment("");
-        
-        const updatedTicket = {
-            ...selectedTicket,
-            comentarios: [...(selectedTicket.comentarios || []), comentarioObj]
-        };
+        const updatedTicket = { ...selectedTicket, comentarios: [...(selectedTicket.comentarios || []), comentarioObj] };
         setSelectedTicket(updatedTicket);
+    } catch (error) { alert("Error al enviar comentario"); } finally { setIsSendingComment(false); }
+  }
 
-    } catch (error) {
-        alert("Error al enviar comentario");
+  const handleRoleToggle = (role: string) => {
+    setNewUserForm(prev => {
+      if (prev.roles.includes(role)) {
+        return { ...prev, roles: prev.roles.filter(r => r !== role) };
+      } else {
+        return { ...prev, roles: [...prev.roles, role] };
+      }
+    });
+  };
+
+  async function handleCreateUser(e: React.FormEvent) {
+    e.preventDefault();
+    if (newUserForm.roles.length === 0) return alert("Debes asignar al menos un rol.");
+    
+    setIsCreatingUser(true);
+    try {
+      await createUserAction(newUserForm);
+      alert("✅ Usuario creado exitosamente");
+      setShowUserModal(false);
+      setNewUserForm({ fullName: "", email: "", password: "", roles: [] });
+    } catch (error: any) {
+      alert("❌ Error: " + error.message);
     } finally {
-        setIsSendingComment(false);
+      setIsCreatingUser(false);
     }
   }
 
@@ -109,13 +137,7 @@ export default function DashboardPage() {
   const containerVariants = { hidden: { opacity: 0 }, show: { opacity: 1, transition: { staggerChildren: 0.1 } } };
   const itemVariants = { hidden: { opacity: 0, y: 20 }, show: { opacity: 1, y: 0 } };
 
-  if (isLoading) {
-    return (
-      <div className="flex items-center justify-center h-[80vh]">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-4 border-blue-800"></div>
-      </div>
-    );
-  }
+  if (isLoading) return <div className="flex items-center justify-center h-[80vh]"><div className="animate-spin rounded-full h-12 w-12 border-b-4 border-blue-800"></div></div>;
 
   return (
     <div className="p-8 max-w-7xl mx-auto">
@@ -126,18 +148,27 @@ export default function DashboardPage() {
           <p className="text-gray-600 mt-1 font-medium">Bienvenido al sistema de gestión de tickets.</p>
         </div>
         
-        <Link href="/create">
-          <motion.button 
-            whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}
-            className="bg-slate-900 hover:bg-slate-800 text-white px-6 py-3 rounded-xl font-bold shadow-lg flex items-center gap-2"
-          >
-            <span>+</span> Nuevo Ticket
-          </motion.button>
-        </Link>
+        <div className="flex gap-3">
+            {isAdmin && (
+                <motion.button 
+                    whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}
+                    onClick={() => setShowUserModal(true)}
+                    className="bg-purple-700 hover:bg-purple-800 text-white px-6 py-3 rounded-xl font-bold shadow-lg flex items-center gap-2 border border-purple-500">
+                    <span>👑</span> Crear Usuario
+                </motion.button>
+            )}
+
+            <Link href="/create">
+            <motion.button 
+                whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}
+                className="bg-slate-900 hover:bg-slate-800 text-white px-6 py-3 rounded-xl font-bold shadow-lg flex items-center gap-2">
+                <span>+</span> Nuevo Ticket
+            </motion.button>
+            </Link>
+        </div>
       </div>
 
       <motion.div variants={containerVariants} initial="hidden" animate="show" className="space-y-8">
-        
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
           {cards.map((card, index) => (
             <motion.div key={index} variants={itemVariants} className={`relative overflow-hidden rounded-2xl p-6 bg-gradient-to-br ${card.color} shadow-lg text-white`}>
@@ -174,11 +205,7 @@ export default function DashboardPage() {
             ) : (
               <div className="divide-y divide-gray-200">
                 {tickets.slice(0, 4).map((ticket) => (
-                  <div 
-                    key={ticket.id} 
-                    onClick={() => setSelectedTicket(ticket)} 
-                    className="p-4 hover:bg-blue-50 cursor-pointer transition-colors flex items-center justify-between group"
-                  >
+                  <div key={ticket.id} onClick={() => setSelectedTicket(ticket)} className="p-4 hover:bg-blue-50 cursor-pointer transition-colors flex items-center justify-between group">
                     <div className="flex items-center gap-4">
                       <div className={`w-3 h-3 rounded-full ${ticket.estado === 'resuelto' ? 'bg-emerald-500' : ticket.prioridad === 'alta' ? 'bg-red-600' : 'bg-blue-600'}`}></div>
                       <div>
@@ -200,124 +227,95 @@ export default function DashboardPage() {
       <AnimatePresence>
         {selectedTicket && (
           <>
-            <motion.div
-              initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-              onClick={() => setSelectedTicket(null)}
-              className="fixed inset-0 bg-black/60 z-40 backdrop-blur-sm"
-            />
-            
-            <motion.div
-              initial={{ opacity: 0, scale: 0.9, y: 20 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.9, y: 20 }}
-              className="fixed inset-0 z-50 flex items-center justify-center p-4 pointer-events-none">
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setSelectedTicket(null)} className="fixed inset-0 bg-black/60 z-40 backdrop-blur-sm" />
+            <motion.div initial={{ opacity: 0, scale: 0.9, y: 20 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.9, y: 20 }} className="fixed inset-0 z-50 flex items-center justify-center p-4 pointer-events-none">
               <div className="bg-white w-full max-w-2xl max-h-[90vh] overflow-y-auto rounded-2xl shadow-2xl border border-gray-200 pointer-events-auto flex flex-col">
-                
                 <div className={`p-6 text-white ${selectedTicket.prioridad === 'alta' ? 'bg-red-600' : 'bg-slate-800'}`}>
                   <div className="flex justify-between items-start">
-                    <div>
-                      <p className="text-xs font-bold uppercase tracking-wider opacity-80 mb-1">
-                        #{selectedTicket.id} • {selectedTicket.prioridad}
-                      </p>
-                      <h2 className="text-2xl font-bold">{selectedTicket.titulo}</h2>
-                    </div>
-                    <button onClick={() => setSelectedTicket(null)} className="bg-white/20 hover:bg-white/30 p-2 rounded-full transition-colors">
-                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12"/></svg>
-                    </button>
-                  </div>
-                  <div className="mt-4 flex gap-4 text-sm font-medium opacity-90">
-                    <span className="flex items-center gap-1">👤 {selectedTicket.creadoPor}</span>
-                    <span className="flex items-center gap-1">📅 {selectedTicket.fechaCreacion}</span>
+                    <div><p className="text-xs font-bold uppercase tracking-wider opacity-80 mb-1">#{selectedTicket.id} • {selectedTicket.prioridad}</p><h2 className="text-2xl font-bold">{selectedTicket.titulo}</h2></div>
+                    <button onClick={() => setSelectedTicket(null)} className="bg-white/20 hover:bg-white/30 p-2 rounded-full transition-colors"><svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12"/></svg></button>
                   </div>
                 </div>
-
                 <div className="p-6 space-y-6">
+                  <div><h3 className="text-sm font-bold text-gray-900 mb-2">Descripción</h3><div className="bg-slate-50 p-4 rounded-xl border border-gray-200 text-gray-800 font-medium">{selectedTicket.descripcion}</div></div>
+                  {selectedTicket.imageUrl && (<div><h3 className="text-sm font-bold text-gray-900 mb-2">📸 Evidencia</h3><div className="relative h-56 w-full rounded-xl overflow-hidden border-2 border-gray-200"><img src={selectedTicket.imageUrl} className="object-cover w-full h-full" /></div></div>)}
                   
-                  <div className="flex gap-4">
-                     <div className="flex-1 bg-gray-50 p-3 rounded-lg border border-gray-200">
-                        <p className="text-xs text-gray-500 font-bold uppercase">Estado Actual</p>
-                        <p className="text-gray-900 font-bold capitalize mt-1">{selectedTicket.estado.replace('_', ' ')}</p>
-                     </div>
-                     <div className="flex-1 bg-gray-50 p-3 rounded-lg border border-gray-200">
-                        <p className="text-xs text-gray-500 font-bold uppercase">Prioridad</p>
-                        <p className={`font-bold mt-1 uppercase ${selectedTicket.prioridad === 'alta' ? 'text-red-600' : 'text-gray-900'}`}>
-                            {selectedTicket.prioridad}
-                        </p>
-                     </div>
-                  </div>
-
-                  <div>
-                    <h3 className="text-sm font-bold text-gray-900 mb-2">Descripción del Problema</h3>
-                    <div className="bg-slate-50 p-4 rounded-xl border border-gray-200 text-gray-800 leading-relaxed font-medium">
-                      {selectedTicket.descripcion}
-                    </div>
-                  </div>
-
-                  {selectedTicket.imageUrl && (
-                    <div>
-                      <h3 className="text-sm font-bold text-gray-900 mb-2">📸 Evidencia Adjunta</h3>
-                      <div className="relative h-56 w-full rounded-xl overflow-hidden border-2 border-gray-200">
-                        <img src={selectedTicket.imageUrl} alt="Evidencia" className="object-cover w-full h-full" />
-                      </div>
-                      <a href={selectedTicket.imageUrl} target="_blank" className="text-blue-600 text-xs font-bold mt-2 block hover:underline">
-                        Ver imagen completa ↗
-                      </a>
-                    </div>
-                  )}
-
                   <div className="border-t border-gray-200 pt-6">
-                    <h3 className="text-sm font-bold text-gray-900 mb-4 flex items-center gap-2">
-                        💬 Comentarios e Historial
-                        <span className="bg-gray-100 text-gray-600 text-xs px-2 py-0.5 rounded-full">{selectedTicket.comentarios?.length || 0}</span>
-                    </h3>
-                    
+                    <h3 className="text-sm font-bold text-gray-900 mb-4">💬 Comentarios</h3>
                     <div className="space-y-3 mb-6 max-h-60 overflow-y-auto pr-2">
-                        {selectedTicket.comentarios && selectedTicket.comentarios.length > 0 ? (
-                             selectedTicket.comentarios.map((c: any, i: number) => (
-                                 <div key={i} className="bg-gray-50 p-3 rounded-xl border border-gray-100 text-sm">
-                                     <div className="flex justify-between items-center mb-1">
-                                         <span className="font-bold text-gray-900">{c.usuario}</span>
-                                         <span className="text-xs text-gray-400">{c.fecha}</span>
-                                     </div>
-                                     <p className="text-gray-700">{c.mensaje}</p>
-                                 </div>
-                             ))
-                        ) : (
-                            <div className="text-center py-4 bg-gray-50 rounded-xl border border-dashed border-gray-300">
-                                <p className="text-gray-400 text-xs">No hay comentarios aún. ¡Sé el primero!</p>
-                            </div>
-                        )}
+                        {selectedTicket.comentarios?.map((c: any, i: number) => (
+                             <div key={i} className="bg-gray-50 p-3 rounded-xl border border-gray-100 text-sm"><span className="font-bold text-gray-900">{c.usuario}</span> <span className="text-gray-700">{c.mensaje}</span></div>
+                        ))}
                     </div>
-
-                    <div className="flex gap-2 items-start">
-                        <textarea
-                            value={newComment}
-                            onChange={(e) => setNewComment(e.target.value)}
-                            placeholder="Escribe una respuesta o actualización..."
-                            className="flex-1 p-3 bg-white border-2 border-gray-300 rounded-xl text-gray-900 text-sm focus:border-blue-600 focus:ring-0 outline-none min-h-[50px] resize-y font-medium"
-                        />
-                        <button
-                            onClick={handleSendComment}
-                            disabled={isSendingComment || !newComment.trim()}
-                            className={`p-3 rounded-xl text-white font-bold transition-all shadow-md
-                                ${isSendingComment || !newComment.trim() ? 'bg-gray-300 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700'}
-                            `}>
-                            {isSendingComment ? (
-                              <svg className="animate-spin w-5 h-5" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
-                            ) : (
-                              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"></path></svg>
-                            )}
-                        </button>
-                    </div>
-
+                    <div className="flex gap-2"><textarea value={newComment} onChange={(e) => setNewComment(e.target.value)} className="flex-1 p-3 bg-white border-2 border-gray-300 rounded-xl text-gray-900 text-sm outline-none font-medium" placeholder="Escribe un comentario..." /><button onClick={handleSendComment} disabled={isSendingComment} className="bg-blue-600 hover:bg-blue-700 text-white p-3 rounded-xl shadow-md">{isSendingComment ? "..." : "Enviar"}</button></div>
                   </div>
-
                 </div>
               </div>
             </motion.div>
           </>
         )}
       </AnimatePresence>
+
+      <AnimatePresence>
+        {showUserModal && (
+          <>
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setShowUserModal(false)} className="fixed inset-0 bg-black/60 z-50 backdrop-blur-sm" />
+            <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} className="fixed inset-0 z-[60] flex items-center justify-center p-4 pointer-events-none">
+              <div className="bg-white w-full max-w-lg rounded-2xl shadow-2xl border-2 border-purple-100 pointer-events-auto overflow-hidden">
+                <div className="bg-purple-700 p-6 text-white">
+                  <h2 className="text-2xl font-bold flex items-center gap-2">👑 Crear Nuevo Usuario</h2>
+                  <p className="text-purple-200 text-sm mt-1">Registra empleados y asigna roles.</p>
+                </div>
+                
+                <form onSubmit={handleCreateUser} className="p-8 space-y-5">
+                  <div>
+                    <label className="block text-sm font-bold text-gray-900 mb-1">Nombre Completo</label>
+                    <input type="text" className="w-full p-3 border-2 border-gray-300 rounded-xl outline-none focus:border-purple-600 text-gray-900 font-medium" 
+                      value={newUserForm.fullName} onChange={e => setNewUserForm({...newUserForm, fullName: e.target.value})} required />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-bold text-gray-900 mb-1">Correo Electrónico</label>
+                    <input type="email" className="w-full p-3 border-2 border-gray-300 rounded-xl outline-none focus:border-purple-600 text-gray-900 font-medium" 
+                      value={newUserForm.email} onChange={e => setNewUserForm({...newUserForm, email: e.target.value})} required />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-bold text-gray-900 mb-1">Contraseña</label>
+                    <input type="password" className="w-full p-3 border-2 border-gray-300 rounded-xl outline-none focus:border-purple-600 text-gray-900 font-medium" 
+                      value={newUserForm.password} onChange={e => setNewUserForm({...newUserForm, password: e.target.value})} required />
+                  </div>
+                  
+                  <div>
+                    <label className="block text-sm font-bold text-gray-900 mb-2">Asignar Roles (Selección Múltiple)</label>
+                    <div className="grid grid-cols-2 gap-3">
+                      {['desarrollo', 'soporte', 'Recursos Humanos'].map((rol) => (
+                        <div key={rol} 
+                          onClick={() => handleRoleToggle(rol)}
+                          className={`cursor-pointer p-3 rounded-xl border-2 flex items-center gap-2 transition-all select-none
+                            ${newUserForm.roles.includes(rol) ? 'border-purple-600 bg-purple-50 text-purple-900' : 'border-gray-200 hover:border-gray-300 text-gray-600'}
+                          `}
+                        >
+                          <div className={`w-5 h-5 rounded border flex items-center justify-center ${newUserForm.roles.includes(rol) ? 'bg-purple-600 border-purple-600' : 'border-gray-400 bg-white'}`}>
+                            {newUserForm.roles.includes(rol) && <svg className="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M5 13l4 4L19 7" /></svg>}
+                          </div>
+                          <span className="font-bold capitalize">{rol}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="pt-4 flex gap-3">
+                    <button type="button" onClick={() => setShowUserModal(false)} className="flex-1 py-3 font-bold text-gray-600 hover:bg-gray-100 rounded-xl transition-colors">Cancelar</button>
+                    <button type="submit" disabled={isCreatingUser} className="flex-1 py-3 bg-purple-700 hover:bg-purple-800 text-white font-bold rounded-xl shadow-lg shadow-purple-200 transition-all">
+                      {isCreatingUser ? "Creando..." : "Registrar Usuario"}
+                    </button>
+                  </div>
+                </form>
+              </div>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
+
     </div>
   );
 }

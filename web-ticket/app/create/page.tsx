@@ -15,6 +15,8 @@ export default function CreateTicketPage() {
   const [titulo, setTitulo] = useState("");
   const [descripcion, setDescripcion] = useState("");
   const [prioridad, setPrioridad] = useState<"alta" | "media" | "baja">("media");
+  const [categoria, setCategoria] = useState("soporte");
+  
   const [archivo, setArchivo] = useState<File | null>(null); 
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -76,6 +78,8 @@ export default function CreateTicketPage() {
       descripcion,
       prioridad,
       estado: "pendiente",
+      // @ts-ignore (Ignoramos error de tipo temporal hasta actualizar interface)
+      category: categoria, 
       creadoPor: createdBy, 
       fechaCreacion: new Date().toLocaleString(),
       leido: false,
@@ -88,19 +92,13 @@ export default function CreateTicketPage() {
 
     try {
       await createTicketAction(nuevoTicket);
-
-      //Si es ALTA prioridad, enviar correo a la lista dinámica
       if (prioridad === "alta") {
-        
-        // Buscamos en la BD los correos de Gerentes y Empleados
         const listaDestinatarios = await getDestinatariosAction();
-
         if (listaDestinatarios) {
             const linkPlataforma = typeof window !== 'undefined' ? `${window.location.origin}/ticket` : 'http://localhost:3000/ticket';
-            
             await sendEmailAction({
-              to: listaDestinatarios, 
-              subject: `🚨 ALERTA CRÍTICA: ${titulo}`,
+              to: listaDestinatarios,
+              subject: `🚨 ALERTA [${categoria.toUpperCase()}]: ${titulo}`,
               ticketData: {
                 titulo,
                 descripcion,
@@ -109,12 +107,8 @@ export default function CreateTicketPage() {
                 link: linkPlataforma
               }
             });
-            console.log("✅ Correos enviados a:", listaDestinatarios);
-        } else {
-            console.warn("⚠️ No se encontraron usuarios con rol gerente o empleado.");
         }
       }
-
       router.push("/ticket");
     } catch (error) {
       console.error("Error general:", error);
@@ -148,10 +142,24 @@ export default function CreateTicketPage() {
             <label className="text-base font-bold text-gray-900">Título</label>
             <input className="w-full p-4 bg-white border-2 border-gray-300 rounded-xl text-gray-900 placeholder-gray-600 focus:border-blue-600 font-medium outline-none" placeholder="Ej: Falla en servidor..." value={titulo} onChange={(e) => setTitulo(e.target.value)} required />
           </div>
+
+          <div className="space-y-2">
+            <label className="text-base font-bold text-gray-900">Departamento Responsable</label>
+            <select 
+                value={categoria}
+                onChange={(e) => setCategoria(e.target.value)}
+                className="w-full p-4 bg-white border-2 border-gray-300 rounded-xl text-gray-900 font-medium outline-none focus:border-blue-600 appearance-none cursor-pointer">
+                <option value="soporte">🔧 Soporte Técnico (General)</option>
+                <option value="desarrollo">💻 Desarrollo / Sistemas</option>
+                <option value="rrhh">👥 Recursos Humanos</option>
+            </select>
+          </div>
+
           <div className="space-y-2">
             <label className="text-base font-bold text-gray-900">Descripción</label>
             <textarea className="w-full p-4 bg-white border-2 border-gray-300 rounded-xl text-gray-900 placeholder-gray-600 focus:border-blue-600 font-medium outline-none min-h-[120px]" placeholder="Detalles del problema..." value={descripcion} onChange={(e) => setDescripcion(e.target.value)} required />
           </div>
+
           <div className="space-y-2">
             <label className="text-base font-bold text-gray-900 flex items-center gap-2">📸 Evidencia (Opcional)</label>
             <div className="border-2 border-dashed border-gray-400 rounded-xl p-6 hover:bg-gray-100 text-center cursor-pointer relative bg-gray-50">
@@ -159,6 +167,7 @@ export default function CreateTicketPage() {
                 {archivo ? <div className="text-emerald-700 font-bold">✅ Archivo listo: {archivo.name}</div> : <div className="text-gray-700 font-medium">Haz clic para subir imagen</div>}
             </div>
           </div>
+
           <div className="space-y-2">
             <label className="text-base font-bold text-gray-900">Prioridad</label>
             <div className="grid grid-cols-3 gap-3">
