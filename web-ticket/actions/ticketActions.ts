@@ -125,3 +125,30 @@ export async function getDestinatariosAction() {
   
   return listaCorreos
 }
+
+export async function addCommentAction(ticketId: number, comment: { usuario: string, mensaje: string, fecha: string }) {
+  const supabase = await createClient()
+
+  // 1. Obtener el ticket actual para ver sus comentarios previos
+  const { data: ticketActual, error: fetchError } = await supabase
+    .from('tickets')
+    .select('comments')
+    .eq('id', ticketId)
+    .single()
+
+  if (fetchError) throw new Error("Error buscando ticket")
+
+  // 2. Agregar el nuevo comentario a la lista existente
+  const comentariosPrevios = ticketActual.comments || []
+  const nuevosComentarios = [...comentariosPrevios, comment]
+
+  // 3. Guardar la lista actualizada en la base de datos
+  const { error: updateError } = await supabase
+    .from('tickets')
+    .update({ comments: nuevosComentarios })
+    .eq('id', ticketId)
+
+  if (updateError) throw new Error("Error guardando comentario")
+  
+  return true
+}
