@@ -17,12 +17,15 @@ export interface Ticket {
   id: number;
   titulo: string;
   descripcion: string;
-  estado: Estado;
-  prioridad: Prioridad;
+  prioridad: "alta" | "media" | "baja";
+  estado: "pendiente" | "en_progreso" | "resuelto";
+  
+  category?: string; 
+  
   creadoPor: string;
   fechaCreacion: string;
-  historial: TicketHistory[];
-  comentarios: TicketComment[];
   leido: boolean;
-  imageUrl?: string;
+  imageUrl?: string; 
+  comentarios?: any[];
+  historial?: any[];
 }

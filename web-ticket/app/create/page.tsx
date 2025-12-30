@@ -7,6 +7,7 @@ import { sendEmailAction } from "@/actions/emailAction";
 import { Ticket } from "@/types/ticket";
 import { motion } from "framer-motion";
 import { createClient } from "@/utils/supabase/client"; 
+import { FaFire, FaTools, FaCoffee } from "react-icons/fa";
 
 export default function CreateTicketPage() {
   const router = useRouter();
@@ -78,7 +79,7 @@ export default function CreateTicketPage() {
       descripcion,
       prioridad,
       estado: "pendiente",
-      // @ts-ignore (Ignoramos error de tipo temporal hasta actualizar interface)
+      // @ts-ignore
       category: categoria, 
       creadoPor: createdBy, 
       fechaCreacion: new Date().toLocaleString(),
@@ -94,10 +95,11 @@ export default function CreateTicketPage() {
       await createTicketAction(nuevoTicket);
       if (prioridad === "alta") {
         const listaDestinatarios = await getDestinatariosAction();
-        if (listaDestinatarios) {
+        if (listaDestinatarios && listaDestinatarios.length > 0) {
             const linkPlataforma = typeof window !== 'undefined' ? `${window.location.origin}/ticket` : 'http://localhost:3000/ticket';
+            
             await sendEmailAction({
-              to: listaDestinatarios,
+              to: listaDestinatarios.join(','), 
               subject: `🚨 ALERTA [${categoria.toUpperCase()}]: ${titulo}`,
               ticketData: {
                 titulo,
@@ -119,9 +121,27 @@ export default function CreateTicketPage() {
   }
 
   const prioridadesConfig = [
-    { id: "baja", label: "Baja", emoji: "☕", colorClass: "bg-emerald-50 border-emerald-200 text-emerald-900", activeClass: "ring-2 ring-emerald-600 bg-emerald-100" },
-    { id: "media", label: "Media", emoji: "🔧", colorClass: "bg-yellow-50 border-yellow-200 text-yellow-900", activeClass: "ring-2 ring-yellow-600 bg-yellow-100" },
-    { id: "alta", label: "Alta", emoji: "🔥", colorClass: "bg-red-50 border-red-200 text-red-900", activeClass: "ring-2 ring-red-600 bg-red-100" },
+    { 
+      id: "baja", 
+      label: "Baja", 
+      emoji: <FaCoffee className="w-8 h-8 text-emerald-600" />, 
+      colorClass: "bg-emerald-50 border-emerald-200 text-emerald-900", 
+      activeClass: "ring-2 ring-emerald-600 bg-emerald-100" 
+    },
+    { 
+      id: "media", 
+      label: "Media", 
+      emoji: <FaTools className="w-8 h-8 text-yellow-600" />, 
+      colorClass: "bg-yellow-50 border-yellow-200 text-yellow-900", 
+      activeClass: "ring-2 ring-yellow-600 bg-yellow-100" 
+    },
+    { 
+      id: "alta", 
+      label: "Alta", 
+      emoji: <FaFire className="w-8 h-8 text-red-600" />, 
+      colorClass: "bg-red-50 border-red-200 text-red-900", 
+      activeClass: "ring-2 ring-red-600 bg-red-100" 
+    },
   ];
 
   return (
@@ -133,7 +153,7 @@ export default function CreateTicketPage() {
             Crear Ticket Corporativo
           </h1>
           <p className="text-blue-50 text-sm mt-1 font-medium">
-            {prioridad === 'alta' ? "⚠️ ALERTA CRÍTICA: Se notificará a gerencia." : "Reporte de incidencia regular."}
+            {prioridad === 'alta' ? "⚠️ ALERTA CRÍTICA: Se notificará al personal." : "Reporte de incidencia regular."}
           </p>
         </div>
 

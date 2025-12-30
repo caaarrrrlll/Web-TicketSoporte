@@ -18,16 +18,17 @@ export async function getTicketsAction(): Promise<Ticket[]> {
 
   return data.map((t: any) => ({
     id: t.id,
-    titulo: t.title,
-    descripcion: t.description,
-    estado: t.status,
-    prioridad: t.priority,
-    creadoPor: t.creator_name,
+    titulo: t.title,              
+    descripcion: t.description,    
+    estado: t.status,              
+    prioridad: t.priority,           
+    creadoPor: t.creator_name,       
     fechaCreacion: new Date(t.created_at).toLocaleString(), 
     historial: t.history || [],
     comentarios: t.comments || [],
-    imageUrl: t.image_url,
-    leido: true 
+    imageUrl: t.image_url,           
+    leido: true,
+    category: t.category || 'soporte' 
   }))
 }
 
@@ -37,7 +38,7 @@ export async function createTicketAction(ticket: Ticket) {
   if (!user) throw new Error("No autenticado")
 
   const { error } = await supabase.from('tickets').insert({
-    title: ticket.titulo,
+    title: ticket.titulo,           
     description: ticket.descripcion,
     status: ticket.estado,
     priority: ticket.prioridad,
@@ -45,9 +46,14 @@ export async function createTicketAction(ticket: Ticket) {
     history: ticket.historial,
     comments: ticket.comentarios,
     user_id: user.id,
-    image_url: ticket.imageUrl 
+    image_url: ticket.imageUrl,
+    category: ticket.category || 'soporte' 
   })
-  if (error) throw new Error(error.message)
+
+  if (error) {
+    console.error("Error al crear ticket en DB:", error.message)
+    throw new Error(error.message)
+  }
   
   revalidatePath('/ticket')
   revalidatePath('/dashboard')
@@ -62,6 +68,7 @@ export async function updateTicketAction(ticket: Ticket) {
       status: ticket.estado,
       history: ticket.historial,
       comments: ticket.comentarios,
+      category: ticket.category 
     })
     .eq('id', ticket.id)
 
@@ -85,63 +92,37 @@ export async function deleteTicketAction(id: number) {
   revalidatePath('/dashboard')
 }
 
-export async function getGerenteEmailsAction() {
-  const supabase = await createClient()
-  
-  // Buscamos todos los usuarios que tengan el rol 'gerente'
-  const { data, error } = await supabase
-    .from('profiles')
-    .select('email')
-    .eq('role', 'gerente') 
-  if (error || !data) {
-    console.error("Error buscando gerentes:", error)
-    return ""
-  }
-
-  // Convertimos la lista en un texto separado por comas
-  const listaCorreos = data.map(usuario => usuario.email).join(', ')
-  
-  return listaCorreos
-}
-
 export async function getDestinatariosAction() {
   const supabase = await createClient()
-  // Buscamos usuarios cuyo rol esté en esta lista
   const { data, error } = await supabase
     .from('profiles')
     .select('email')
-    .overlaps('role', ['gerente', 'empleado']) 
+    .overlaps('role', ['gerente', 'soporte', 'rrhh', 'desarrollo']) 
 
   if (error || !data) {
     console.error("Error buscando destinatarios:", error)
-    return ""
+    return []
   }
 
-  const listaCorreos = data
+  return data
     .map(usuario => usuario.email)
-    .filter(email => email !== null) 
-    .join(', ')
-  
-  return listaCorreos
+    .filter(email => email !== null) as string[]
 }
 
 export async function addCommentAction(ticketId: number, comment: { usuario: string, mensaje: string, fecha: string }) {
   const supabase = await createClient()
 
-  // 1. Obtener el ticket actual para ver sus comentarios previos
   const { data: ticketActual, error: fetchError } = await supabase
     .from('tickets')
-    .select('comments')
+    .select('comments') 
     .eq('id', ticketId)
     .single()
 
   if (fetchError) throw new Error("Error buscando ticket")
 
-  // 2. Agregar el nuevo comentario a la lista existente
   const comentariosPrevios = ticketActual.comments || []
   const nuevosComentarios = [...comentariosPrevios, comment]
 
-  // 3. Guardar la lista actualizada en la base de datos
   const { error: updateError } = await supabase
     .from('tickets')
     .update({ comments: nuevosComentarios })
@@ -149,5 +130,6 @@ export async function addCommentAction(ticketId: number, comment: { usuario: str
 
   if (updateError) throw new Error("Error guardando comentario")
   
+  revalidatePath('/ticket') 
   return true
 }
