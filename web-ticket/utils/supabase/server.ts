@@ -8,6 +8,9 @@ export async function createClient() {
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
     {
+      cookieOptions: {
+        secure: process.env.NODE_ENV === 'production',
+      },
       cookies: {
         getAll() {
           return cookieStore.getAll()
@@ -18,7 +21,7 @@ export async function createClient() {
               cookieStore.set(name, value, options)
             )
           } catch {
-            // Se ignora el error si se llama desde un componente de servidor
+            // Ignorar errores de escritura en Server Components
           }
         },
       },
