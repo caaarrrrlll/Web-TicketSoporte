@@ -7,10 +7,11 @@ import { Ticket } from "@/types/ticket";
 import { motion, AnimatePresence } from "framer-motion"; 
 import Link from "next/link";
 import { createClient } from "@/utils/supabase/client"; 
-import 
-{ FaBuilding, FaUserCircle, FaCalendarAlt, FaComments, FaTimes, 
+import { 
+  FaBuilding, FaUserCircle, FaCalendarAlt, FaComments, FaTimes, 
   FaExpand, FaLaptopCode, FaTools, FaFolderOpen, 
-  FaHourglassHalf, FaCog, FaCheck } from 'react-icons/fa'; 
+  FaHourglassHalf, FaCog, FaCheck 
+} from 'react-icons/fa'; 
 
 export default function DashboardPage() {
   const [tickets, setTickets] = useState<Ticket[]>([]);
@@ -52,16 +53,34 @@ export default function DashboardPage() {
         const updatedSelected = sortedData.find(t => t.id === selectedTicket.id);
         if (updatedSelected) setSelectedTicket(updatedSelected);
       }
-    } catch (error) { console.error("Error cargando dashboard:", error); } finally { setIsLoading(false); }
+    } catch (error) { 
+      console.error("Error cargando dashboard:", error); 
+    } finally { 
+      setIsLoading(false); 
+    }
   }
 
   useEffect(() => { loadData(); }, []);
 
   useEffect(() => {
     const supabase = createClient();
-    const channel = supabase.channel('dashboard-changes').on('postgres_changes', { event: '*', schema: 'public', table: 'tickets' }, () => { loadData(); }).subscribe();
-    return () => { supabase.removeChannel(channel); };
-  }, [selectedTicket]);
+    
+    const channel = supabase
+      .channel('dashboard-realtime')
+      .on(
+        'postgres_changes', 
+        { event: '*', schema: 'public', table: 'tickets' }, 
+        (payload) => {
+          console.log("Cambio en tiempo real detectado:", payload);
+          loadData(); 
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [selectedTicket]); 
 
   const getCategoryBadge = (cat?: string) => {
     switch(cat) {
@@ -130,7 +149,6 @@ export default function DashboardPage() {
   return (
     <div className="p-8 max-w-7xl mx-auto">
       
-      {/* HEADER PRINCIPAL */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-10">
         <div>
           <h1 className="text-3xl font-bold text-gray-900">Panel de Control</h1>
@@ -248,14 +266,14 @@ export default function DashboardPage() {
                 <div className="p-6 space-y-6">
                   
                   <div className="grid grid-cols-2 gap-4 bg-gray-50 p-4 rounded-xl border border-gray-200">
-                     <div>
+                      <div>
                         <p className="text-xs text-gray-500 font-bold uppercase mb-2">Departamento</p>
                         <div className="flex items-center gap-3">
                             <div className="bg-blue-100 text-blue-700 p-2 rounded-lg"><FaBuilding className="w-5 h-5" /></div>
                             <span className="text-gray-900 font-bold capitalize">{selectedTicket.category || "Soporte General"}</span>
                         </div>
-                     </div>
-                     <div>
+                      </div>
+                      <div>
                         <p className="text-xs text-gray-500 font-bold uppercase mb-2">Reportado Por</p>
                         <div className="flex items-center gap-3">
                             <div className="bg-purple-100 text-purple-700 p-2 rounded-lg"><FaUserCircle className="w-6 h-6" /></div>
@@ -264,7 +282,7 @@ export default function DashboardPage() {
                                 <div className="flex items-center gap-1 text-gray-500 text-xs mt-1"><FaCalendarAlt className="w-3 h-3" /> <span>{selectedTicket.fechaCreacion}</span></div>
                             </div>
                         </div>
-                     </div>
+                      </div>
                   </div>
 
                   <div>
@@ -282,8 +300,7 @@ export default function DashboardPage() {
                       </h3>
                       <div 
                         className="relative w-full rounded-xl overflow-hidden border-2 border-gray-200 bg-gray-100 flex justify-center cursor-zoom-in hover:bg-gray-200 transition-colors"
-                        onClick={() => setSelectedImage(selectedTicket.imageUrl || null)}
-                      >
+                        onClick={() => setSelectedImage(selectedTicket.imageUrl || null)}>
                         <img 
                             src={selectedTicket.imageUrl} 
                             alt="Evidencia" 

@@ -34,11 +34,24 @@ export default function TicketPage() {
   useEffect(() => {
     const supabase = createClient();
     const channel = supabase
-      .channel('tickets-list-updates')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'tickets' }, () => { loadTickets(); })
-      .subscribe();
-    return () => { supabase.removeChannel(channel); };
-  }, []);
+      .channel('realtime-tickets')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'tickets' },
+        (payload) => {
+          console.log("Cambio detectado en DB:", payload); 
+          loadTickets(); 
+        }
+      )
+      .subscribe((status) => {
+        if (status === 'SUBSCRIBED') {
+          console.log('Conectado a Realtime de Tickets ');
+        }
+      });
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, []); 
 
   async function handleDelete(id: number, e: React.MouseEvent) {
     e.stopPropagation();
