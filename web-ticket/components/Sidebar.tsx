@@ -74,7 +74,7 @@ export function Sidebar() {
         <button
           onClick={handleLogout}
           className={`mt-1 w-full text-left text-red-200 hover:text-red-100 hover:bg-slate-800 rounded-md px-3 py-2 transition flex items-center gap-2`}>
-          <span>🚪</span>
+          <span></span>
           {isOpen && "Cerrar sesión"}
         </button>
       </div>

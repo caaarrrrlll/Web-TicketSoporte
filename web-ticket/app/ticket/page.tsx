@@ -157,7 +157,10 @@ export default function TicketPage() {
 
                       <div className="flex items-center gap-3 w-full md:w-auto justify-between md:justify-end mt-4 md:mt-0 border-t md:border-t-0 pt-3 md:pt-0 border-gray-100">
                         <div onClick={(e) => e.stopPropagation()}>
-                          <select value={ticket.estado} onChange={(e) => handleStatusChange(ticket, e.target.value, e)} className={`text-xs font-bold py-2 px-4 rounded-lg border cursor-pointer outline-none uppercase tracking-wide transition-colors ${ticket.estado === 'pendiente' ? 'bg-gray-100 text-gray-600 border-gray-300 hover:bg-gray-200' : ticket.estado === 'en_progreso' ? 'bg-blue-50 text-blue-700 border-blue-200 hover:bg-blue-100' : 'bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100'}`}>
+                          <select value={ticket.estado} onChange={(e) => handleStatusChange(ticket, e.target.value, e)} 
+                          className={`text-xs font-bold py-2 px-4 rounded-lg border cursor-pointer outline-none uppercase tracking-wide transition-colors ${
+                            ticket.estado === 'pendiente' ? 'bg-gray-100 text-gray-600 border-gray-300 hover:bg-gray-200' : ticket.estado === 'en_progreso' ? 
+                            'bg-blue-50 text-blue-700 border-blue-200 hover:bg-blue-100' : 'bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100'}`}>
                             <option value="pendiente">⏳ Pendiente</option>
                             <option value="en_progreso">⚙️ En Progreso</option>
                             <option value="resuelto">✅ Resuelto</option>
