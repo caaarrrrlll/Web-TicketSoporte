@@ -64,23 +64,27 @@ export default function DashboardPage() {
 
   useEffect(() => {
     const supabase = createClient();
-    
     const channel = supabase
-      .channel('dashboard-realtime')
+      .channel('dashboard-realtime-global') 
       .on(
         'postgres_changes', 
-        { event: '*', schema: 'public', table: 'tickets' }, 
-        (payload) => {
-          console.log("Cambio en tiempo real detectado:", payload);
+        { 
+          event: '*', 
+          schema: 'public', 
+          table: 'tickets' 
+        }, 
+        () => {
           loadData(); 
         }
       )
-      .subscribe();
-
+      .subscribe((status) => {
+          if (status === 'SUBSCRIBED') {
+        }
+      });
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [selectedTicket]); 
+  }, []); 
 
   const getCategoryBadge = (cat?: string) => {
     switch(cat) {
@@ -201,38 +205,43 @@ export default function DashboardPage() {
               <div className="divide-y divide-gray-200">
                 {tickets.slice(0, 4).map((ticket) => {
                   const catInfo = getCategoryBadge(ticket.category);
-                  
                   return (
-                    <div key={ticket.id} onClick={() => setSelectedTicket(ticket)} className="relative overflow-hidden hover:bg-blue-50 cursor-pointer transition-colors group">
-                        
-                        <div className={`absolute left-0 top-0 bottom-0 w-2 ${getPriorityColor(ticket.prioridad)}`} />
-                        
-                        <div className="p-4 pl-6 flex items-center justify-between">
-                            <div className="flex-1">
-                                <div className="flex items-center gap-2 mb-1">
-                                    <span className={`flex items-center gap-1.5 text-[10px] uppercase font-bold px-2 py-0.5 rounded border ${catInfo.class}`}>
-                                        {catInfo.icon} {catInfo.label}
-                                    </span>
-                                    {ticket.prioridad === 'alta' && (
-                                        <span className="bg-red-50 text-red-600 border border-red-100 text-[10px] uppercase font-bold px-2 py-0.5 rounded flex items-center gap-1">
-                                            🔥 Alta
-                                        </span>
-                                    )}
-                                </div>
-                                
-                                <p className="font-bold text-gray-900 group-hover:text-blue-700 transition-colors text-lg">{ticket.titulo}</p>
-                                <div className="flex items-center gap-2 text-xs text-gray-500 font-semibold mt-1">
-                                    <span className="flex items-center gap-1"><FaUserCircle /> {ticket.creadoPor}</span>
-                                    <span>•</span>
-                                    <span>{ticket.fechaCreacion}</span>
-                                </div>
-                            </div>
-                            
-                            <span className={`text-xs px-3 py-1 rounded-full border-2 font-bold capitalize ${ticket.estado === 'pendiente' ? 'bg-gray-100 text-gray-700 border-gray-300' : ticket.estado === 'en_progreso' ? 'bg-blue-50 text-blue-700 border-blue-200' : 'bg-emerald-50 text-emerald-700 border-emerald-200'}`}>
-                                {ticket.estado.replace('_', ' ')}
+                    <motion.div
+                      key={ticket.id}
+                      layout 
+                      initial={{ opacity: 0, y: -20, scale: 0.95, backgroundColor: "#eff6ff" }}
+                      animate={{ opacity: 1, y: 0, scale: 1, backgroundColor: "transparent" }} 
+                      transition={{ duration: 0.5, type: "spring", bounce: 0.3 }} 
+                      onClick={() => setSelectedTicket(ticket)}
+                      className="relative overflow-hidden hover:bg-blue-50 cursor-pointer transition-colors group border-b last:border-b-0 border-gray-100">
+                      <div className={`absolute left-0 top-0 bottom-0 w-2 ${getPriorityColor(ticket.prioridad)}`} />
+                  
+                      <div className="p-4 pl-6 flex items-center justify-between">
+                        <div className="flex-1">
+                          <div className="flex items-center gap-2 mb-1">
+                            <span className={`flex items-center gap-1.5 text-[10px] uppercase font-bold px-2 py-0.5 rounded border ${catInfo.class}`}>
+                              {catInfo.icon} {catInfo.label}
                             </span>
+                            {ticket.prioridad === 'alta' && (
+                              <span className="bg-red-50 text-red-600 border border-red-100 text-[10px] uppercase font-bold px-2 py-0.5 rounded flex items-center gap-1">
+                                🔥 Alta
+                              </span>
+                            )}
+                          </div>
+                          
+                          <p className="font-bold text-gray-900 group-hover:text-blue-700 transition-colors text-lg">{ticket.titulo}</p>
+                          <div className="flex items-center gap-2 text-xs text-gray-500 font-semibold mt-1">
+                            <span className="flex items-center gap-1"><FaUserCircle /> {ticket.creadoPor}</span>
+                            <span>•</span>
+                            <span>{ticket.fechaCreacion}</span>
+                          </div>
                         </div>
-                    </div>
+                          
+                        <span className={`text-xs px-3 py-1 rounded-full border-2 font-bold capitalize ${ticket.estado === 'pendiente' ? 'bg-gray-100 text-gray-700 border-gray-300' : ticket.estado === 'en_progreso' ? 'bg-blue-50 text-blue-700 border-blue-200' : 'bg-emerald-50 text-emerald-700 border-emerald-200'}`}>
+                          {ticket.estado.replace('_', ' ')}
+                        </span>
+                      </div>
+                    </motion.div>
                   );
                 })}
               </div>

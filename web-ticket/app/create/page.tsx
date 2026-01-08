@@ -79,7 +79,6 @@ export default function CreateTicketPage() {
       descripcion,
       prioridad,
       estado: "pendiente",
-      // @ts-ignore
       category: categoria, 
       creadoPor: createdBy, 
       fechaCreacion: new Date().toLocaleString(),

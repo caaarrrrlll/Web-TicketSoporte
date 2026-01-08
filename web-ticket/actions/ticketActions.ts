@@ -31,7 +31,7 @@ export async function getTicketsAction(): Promise<Ticket[]> {
     category: t.category || 'soporte'
   }))
 }
-
+ 
 export async function createTicketAction(ticket: Ticket) {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
@@ -66,7 +66,7 @@ export async function createTicketAction(ticket: Ticket) {
   if (error) {
     console.error("Error al crear ticket en DB:", error.message)
     throw new Error(error.message)
-  }
+  } 
   
   revalidatePath('/ticket')
   revalidatePath('/dashboard')
