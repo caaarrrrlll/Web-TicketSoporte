@@ -13,12 +13,16 @@ export default function LayoutClient({ children }: { children: React.ReactNode }
   return (
     <SidebarProvider>
       <SessionGuard>
-        <div className="flex min-h-screen bg-gray-100">
+        <div className={`flex min-h-screen ${hideLayout ? 'bg-transparent' : 'bg-gray-100'}`}>
+          
           {!hideLayout && <Sidebar />}
 
-          <div className="flex-1 flex flex-col bg-gray-100">
-            <main className="flex-1 p-6">{children}</main>
+          <div className="flex-1 flex flex-col">
+            <main className={`flex-1 ${hideLayout ? 'p-0' : 'p-6'}`}>
+              {children}
+            </main>
           </div>
+          
         </div>
       </SessionGuard>
     </SidebarProvider>

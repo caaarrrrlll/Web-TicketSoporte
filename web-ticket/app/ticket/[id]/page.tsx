@@ -26,7 +26,6 @@ export default function TicketDetailPage() {
       const { data: t, error } = await supabase.from('tickets').select('*').eq('id', id).single();
       if (error || !t) { router.push("/ticket"); return; }
 
-      // Mapeo simple para evitar errores de tipos
       const ticketFormateado = {
         id: t.id,
         titulo: t.title,
