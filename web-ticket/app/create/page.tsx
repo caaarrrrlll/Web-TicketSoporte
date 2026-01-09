@@ -11,21 +11,19 @@ import Link from "next/link";
 export default function CreateTicketPage() {
   const router = useRouter();
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [isUploading, setIsUploading] = useState(false); // Nuevo estado para saber si sube foto
-  const [uploadSuccess, setUploadSuccess] = useState(false); // Para mostrar check verde
+  const [isUploading, setIsUploading] = useState(false); 
+  const [uploadSuccess, setUploadSuccess] = useState(false); 
 
-  // Estado del formulario
   const [formData, setFormData] = useState({
     titulo: "",
     categoria: "soporte",
     descripcion: "",
     prioridad: "media", 
-    imageUrl: "" // Aquí se guardará el link final de la foto
+    imageUrl: "" 
   });
 
   const [showWarningModal, setShowWarningModal] = useState(false);
 
-  // --- LÓGICA DE SUBIDA REAL A SUPABASE ---
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -35,23 +33,16 @@ export default function CreateTicketPage() {
 
     try {
       const supabase = createClient();
-      
-      // 1. Crear un nombre único para el archivo (ej: 82374-nombrefoto.jpg)
       const fileExt = file.name.split('.').pop();
       const fileName = `${Math.random().toString(36).substring(2, 15)}_${Date.now()}.${fileExt}`;
       const filePath = `${fileName}`;
 
-      // 2. Subir a la carpeta 'evidence'
       const { error: uploadError } = await supabase.storage
-        .from('evidence') // <--- Asegúrate que tu bucket se llame así
+        .from('evidence') 
         .upload(filePath, file);
 
       if (uploadError) throw uploadError;
-
-      // 3. Obtener el Link Público para guardarlo en la base de datos
       const { data } = supabase.storage.from('evidence').getPublicUrl(filePath);
-
-      // 4. Guardar el link en el estado
       setFormData(prev => ({ ...prev, imageUrl: data.publicUrl }));
       setUploadSuccess(true);
       
@@ -62,7 +53,6 @@ export default function CreateTicketPage() {
       setIsUploading(false);
     }
   };
-  // ----------------------------------------
 
   const handlePriorityChange = (priority: string) => {
     if (priority === 'alta') setShowWarningModal(true);
@@ -77,8 +67,6 @@ export default function CreateTicketPage() {
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!formData.titulo || !formData.descripcion) return alert("Por favor completa los campos obligatorios");
-    
-    // Evitar enviar si la imagen aún se está subiendo
     if (isUploading) return alert("Espera a que termine de subir la imagen.");
 
     setIsSubmitting(true);
@@ -114,8 +102,7 @@ export default function CreateTicketPage() {
       <motion.div 
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
-        className="w-full max-w-2xl bg-white rounded-2xl shadow-xl overflow-hidden"
-      >
+        className="w-full max-w-2xl bg-white rounded-2xl shadow-xl overflow-hidden">
         <div className={`p-6 text-white transition-colors duration-300 flex justify-between items-center ${formData.prioridad === 'alta' ? 'bg-red-600' : 'bg-slate-900'}`}>
             <div>
                 <h1 className="text-2xl font-bold flex items-center gap-2">
@@ -136,7 +123,6 @@ export default function CreateTicketPage() {
         </div>
 
         <form onSubmit={handleSubmit} className="p-8 space-y-6">
-            
             <div>
                 <label className="block text-sm font-bold text-gray-700 mb-1">Título</label>
                 <input 
@@ -153,8 +139,7 @@ export default function CreateTicketPage() {
                 <select 
                     value={formData.categoria}
                     onChange={e => setFormData({...formData, categoria: e.target.value})}
-                    className="w-full p-3 border-2 border-gray-200 rounded-xl outline-none focus:border-blue-500 transition-colors font-medium text-gray-900 bg-white"
-                >
+                    className="w-full p-3 border-2 border-gray-200 rounded-xl outline-none focus:border-blue-500 transition-colors font-medium text-gray-900 bg-white">
                     <option value="soporte">🔧 Soporte Técnico (General)</option>
                     <option value="desarrollo">💻 Desarrollo / Software</option>
                     <option value="rrhh">👥 Recursos Humanos</option>
@@ -171,12 +156,9 @@ export default function CreateTicketPage() {
                 />
             </div>
 
-            {/* --- SECCIÓN DE EVIDENCIA MEJORADA --- */}
             <div>
                 <label className="block text-sm font-bold text-gray-700 mb-1">Evidencia (Opcional)</label>
                 <div className={`relative border-2 border-dashed rounded-xl transition-all group cursor-pointer bg-white ${uploadSuccess ? 'border-emerald-500 bg-emerald-50' : 'border-gray-300 hover:bg-gray-50'}`}>
-                    
-                    {/* Input invisible */}
                     <input type="file" onChange={handleImageUpload} className="absolute inset-0 w-full h-full opacity-0 cursor-pointer" accept="image/*" disabled={isUploading} />
                     
                     <div className="p-6 flex flex-col items-center justify-center text-gray-400 group-hover:text-blue-500">
@@ -205,13 +187,13 @@ export default function CreateTicketPage() {
                 <label className="block text-sm font-bold text-gray-700 mb-2">Prioridad</label>
                 <div className="grid grid-cols-3 gap-4">
                     <button type="button" onClick={() => handlePriorityChange('baja')} className={`p-3 rounded-xl border-2 font-bold flex flex-col items-center gap-1 transition-all ${formData.prioridad === 'baja' ? 'bg-emerald-50 border-emerald-500 text-emerald-700' : 'bg-white border-gray-200 text-gray-400 hover:border-gray-300'}`}>
-                        <span className="text-xl">☕</span> Baja
+                      <span className="text-xl">☕</span> Baja
                     </button>
                     <button type="button" onClick={() => handlePriorityChange('media')} className={`p-3 rounded-xl border-2 font-bold flex flex-col items-center gap-1 transition-all ${formData.prioridad === 'media' ? 'bg-yellow-50 border-yellow-500 text-yellow-700' : 'bg-white border-gray-200 text-gray-400 hover:border-gray-300'}`}>
-                        <span className="text-xl">🛠️</span> Media
+                      <span className="text-xl">🛠️</span> Media
                     </button>
                     <button type="button" onClick={() => handlePriorityChange('alta')} className={`p-3 rounded-xl border-2 font-bold flex flex-col items-center gap-1 transition-all ${formData.prioridad === 'alta' ? 'bg-red-50 border-red-600 text-red-700 shadow-lg shadow-red-100 scale-105' : 'bg-white border-gray-200 text-gray-400 hover:border-gray-300'}`}>
-                        <span className="text-xl">🔥</span> Alta
+                      <span className="text-xl">🔥</span> Alta
                     </button>
                 </div>
             </div>
@@ -219,8 +201,7 @@ export default function CreateTicketPage() {
             <button 
                 type="submit" 
                 disabled={isSubmitting || isUploading} 
-                className={`w-full py-4 rounded-xl text-white font-bold text-lg shadow-lg transition-all transform active:scale-[0.98] ${formData.prioridad === 'alta' ? 'bg-red-600 hover:bg-red-700 shadow-red-200' : 'bg-slate-900 hover:bg-slate-800 shadow-slate-300'} ${isUploading ? 'opacity-50 cursor-not-allowed' : ''}`}
-            >
+                className={`w-full py-4 rounded-xl text-white font-bold text-lg shadow-lg transition-all transform active:scale-[0.98] ${formData.prioridad === 'alta' ? 'bg-red-600 hover:bg-red-700 shadow-red-200' : 'bg-slate-900 hover:bg-slate-800 shadow-slate-300'} ${isUploading ? 'opacity-50 cursor-not-allowed' : ''}`}>
                 {isSubmitting ? "Registrando..." : "Registrar Ticket"}
             </button>
 

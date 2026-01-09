@@ -162,8 +162,7 @@ export async function getPaginatedTicketsAction(page: number, pageSize: number):
     estado: t.status,
     prioridad: t.priority,
     creadoPor: t.creator_name,
-    fechaCreacion: new Date(t.created_at).toLocaleString(),
-    historial: t.history || [],
+    fechaCreacion: new Date(t.created_at).toLocaleString('es-EC', { timeZone: 'America/Guayaquil' }),    historial: t.history || [],
     comentarios: t.comments || [],
     imageUrl: t.image_url,
     leido: true,
@@ -211,7 +210,7 @@ export async function addCommentAction(ticketId: number, comment: { usuario: str
   if (!user) throw new Error("No autenticado")
   const { data: profile } = await supabase.from('profiles').select('full_name, email').eq('id', user.id).single()
   const nombreReal = profile?.full_name || profile?.email?.split('@')[0] || "Usuario Registrado"
-  const comentarioReal = { usuario: nombreReal, mensaje: comment.mensaje, fecha: new Date().toLocaleString() }
+  const comentarioReal = { usuario: nombreReal, mensaje: comment.mensaje, fecha: new Date().toLocaleString('es-EC', { timeZone: 'America/Guayaquil' }) }
   const { data: ticketActual, error: fetchError } = await supabase.from('tickets').select('comments').eq('id', ticketId).single()
   if (fetchError) throw new Error("Error buscando ticket")
   const nuevosComentarios = [...(ticketActual.comments || []), comentarioReal]
