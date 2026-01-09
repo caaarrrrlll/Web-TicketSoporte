@@ -6,6 +6,7 @@ import { useParams, useRouter } from "next/navigation";
 import { createClient } from "@/utils/supabase/client"; 
 import { addCommentAction } from "@/actions/ticketActions"; 
 import { FaUserCircle, FaCalendarAlt, FaTools, FaLaptopCode, FaArrowLeft, FaPaperPlane } from 'react-icons/fa';
+import { Toast } from "@/components/Toast";
 
 export default function TicketDetailPage() {
   const { id } = useParams();

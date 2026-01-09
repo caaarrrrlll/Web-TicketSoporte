@@ -7,10 +7,8 @@ import { Ticket } from "@/types/ticket";
 import { motion, AnimatePresence } from "framer-motion"; 
 import Link from "next/link";
 import { createClient } from "@/utils/supabase/client"; 
-import { 
-  FaBuilding, FaUserCircle, FaCalendarAlt, FaComments, FaTimes, 
-  FaExpand, FaLaptopCode, FaTools, FaFolderOpen, 
-  FaHourglassHalf, FaCog, FaCheck 
+import { toast } from 'sonner'; 
+import { FaBuilding, FaUserCircle, FaCalendarAlt, FaComments, FaTimes, FaExpand, FaLaptopCode, FaTools, FaFolderOpen, FaHourglassHalf, FaCog, FaCheck 
 } from 'react-icons/fa'; 
 
 export default function DashboardPage() {
@@ -62,7 +60,7 @@ export default function DashboardPage() {
 
   useEffect(() => { loadData(); }, []);
 
- useEffect(() => {
+useEffect(() => {
     if (!selectedTicket) return;
 
     const supabase = createClient();
@@ -78,24 +76,30 @@ export default function DashboardPage() {
           filter: `id=eq.${selectedTicket.id}` 
         },
         (payload: any) => {
-            const ticketActualizado = payload.new;
+            const ticketActualizado = payload.new;      
+            const datosNuevos = {
+                estado: ticketActualizado.status,
+                prioridad: ticketActualizado.priority,
+                historial: ticketActualizado.history || [],
+                comentarios: ticketActualizado.comments || [],
+            };
             setSelectedTicket((prev) => {
                 if (!prev) return null;
-                return {
-                    ...prev,
-                    estado: ticketActualizado.status,
-                    prioridad: ticketActualizado.priority,
-                    historial: ticketActualizado.history || [],
-                    comentarios: ticketActualizado.comments || [],
-                };
+                return { ...prev, ...datosNuevos };
             });
+            setTickets((prevTickets) => prevTickets.map((t) => {
+                if (t.id === ticketActualizado.id) {
+                     return { ...t, ...datosNuevos };
+                }
+                return t;
+            }));
         }
       )
       .subscribe();
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [selectedTicket?.id]); // <
+  }, [selectedTicket?.id]);
 
   const getCategoryBadge = (cat?: string) => {
     switch(cat) {
@@ -121,13 +125,21 @@ export default function DashboardPage() {
         const userLocal = JSON.parse(localStorage.getItem("sessionUser") || "{}");
         if (userLocal.name || userLocal.full_name) autor = userLocal.name || userLocal.full_name;
     } catch {}
+    
     const comentarioObj = { usuario: autor, mensaje: newComment, fecha: new Date().toLocaleString() };
+    
     try {
         await addCommentAction(selectedTicket.id, comentarioObj);
-        setNewComment("");
-        const updatedTicket = { ...selectedTicket, comentarios: [...(selectedTicket.comentarios || []), comentarioObj] };
+        setNewComment("");  
+        const updatedTicket = { ...selectedTicket, comentarios: [...(selectedTicket.comentarios || []), comentarioObj] };      
         setSelectedTicket(updatedTicket);
-    } catch (error) { alert("Error al enviar comentario"); } finally { setIsSendingComment(false); }
+        setTickets(prevTickets => prevTickets.map(t => 
+            t.id === selectedTicket.id ? updatedTicket : t
+        ));
+
+    } catch (error) { 
+        toast.error("Error al enviar comentario"); 
+    } finally { setIsSendingComment(false); }
   }
 
   const handleRoleToggle = (role: string) => {
@@ -139,14 +151,18 @@ export default function DashboardPage() {
 
   async function handleCreateUser(e: React.FormEvent) {
     e.preventDefault();
-    if (newUserForm.roles.length === 0) return alert("Debes asignar al menos un rol.");
+    if (newUserForm.roles.length === 0) return toast.warning("Debes asignar al menos un rol."); 
+    
     setIsCreatingUser(true);
     try {
       await createUserAction(newUserForm);
-      alert("✅ Usuario creado exitosamente");
+      toast.success("Usuario creado exitosamente"); 
+      
       setShowUserModal(false);
       setNewUserForm({ fullName: "", email: "", password: "", roles: [] });
-    } catch (error: any) { alert("❌ Error: " + error.message); } finally { setIsCreatingUser(false); }
+    } catch (error: any) { 
+      toast.error("Error: " + error.message); 
+    } finally { setIsCreatingUser(false); }
   }
 
   const cards = [

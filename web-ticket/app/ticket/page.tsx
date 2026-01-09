@@ -7,6 +7,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import Link from "next/link";
 import { createClient } from "@/utils/supabase/client"; 
 import { FaCalendarAlt, FaCamera, FaSearch, FaTools, FaUserCircle, FaBuilding, FaLaptopCode, FaTrashAlt, FaExternalLinkAlt, FaTimes, FaExpand } from "react-icons/fa";
+import { toast } from 'sonner'; 
 
 export default function TicketPage() {
   const [tickets, setTickets] = useState<Ticket[]>([]);
@@ -53,13 +54,31 @@ export default function TicketPage() {
     };
   }, []); 
 
-  async function handleDelete(id: number, e: React.MouseEvent) {
+  function handleDelete(id: number, e: React.MouseEvent) {
     e.stopPropagation();
-    if (!confirm("¿Estás seguro de que quieres eliminar este ticket?")) return;
-    try {
-      setTickets((prev) => prev.filter((t) => t.id !== id));
-      await deleteTicketAction(id);
-    } catch (error) { loadTickets(); }
+
+    toast("¿Estás seguro de que quieres eliminar este ticket?", {
+      description: "Esta acción no se puede deshacer.",
+      action: {
+        label: "Eliminar",
+        onClick: async () => {
+          const ticketsAnteriores = [...tickets];
+          setTickets((prev) => prev.filter((t) => t.id !== id));
+          
+          try {
+            await deleteTicketAction(id);
+            toast.success("Ticket eliminado correctamente");
+          } catch (error) {
+            setTickets(ticketsAnteriores);
+            toast.error("Error al eliminar el ticket");
+          }
+        },
+      },
+      cancel: {
+        label: "Cancelar",
+        onClick: () => {}
+      },
+    });
   }
 
   async function handleStatusChange(ticket: Ticket, nuevoEstado: string, e: React.MouseEvent | React.ChangeEvent) {

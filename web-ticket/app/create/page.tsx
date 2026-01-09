@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { createTicketAction } from "@/actions/ticketActions"; 
-import { createClient } from "@/utils/supabase/client"; // <--- Necesario para subir foto
+import { createClient } from "@/utils/supabase/client"; 
 import { motion, AnimatePresence } from "framer-motion";
 import { FaExclamationTriangle, FaUpload, FaTimes, FaCheck, FaArrowLeft, FaSpinner } from "react-icons/fa";
 import Link from "next/link";
@@ -222,7 +222,7 @@ export default function CreateTicketPage() {
                             </p>
                             <div className="flex flex-col gap-3 w-full">
                                 <button onClick={() => setShowWarningModal(false)} className="w-full py-3 bg-red-600 hover:bg-red-700 text-white font-bold rounded-xl shadow-lg shadow-red-200 transition-colors">Sí, es una emergencia</button>
-                                <button onClick={cancelHighPriority} className="w-full py-3 bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold rounded-xl transition-colors">Cancelar (Volver a Media)</button>
+                                <button onClick={cancelHighPriority} className="w-full py-3 bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold rounded-xl transition-colors">Cancelar</button>
                             </div>
                         </div>
                     </div>
