@@ -62,29 +62,40 @@ export default function DashboardPage() {
 
   useEffect(() => { loadData(); }, []);
 
-  useEffect(() => {
+ useEffect(() => {
+    if (!selectedTicket) return;
+
     const supabase = createClient();
+    const channelName = `chat-ticket-${selectedTicket.id}`;
     const channel = supabase
-      .channel('dashboard-realtime-global') 
+      .channel(channelName)
       .on(
-        'postgres_changes', 
+        'postgres_changes',
         { 
-          event: '*', 
+          event: 'UPDATE', 
           schema: 'public', 
-          table: 'tickets' 
-        }, 
-        () => {
-          loadData(); 
+          table: 'tickets', 
+          filter: `id=eq.${selectedTicket.id}` 
+        },
+        (payload: any) => {
+            const ticketActualizado = payload.new;
+            setSelectedTicket((prev) => {
+                if (!prev) return null;
+                return {
+                    ...prev,
+                    estado: ticketActualizado.status,
+                    prioridad: ticketActualizado.priority,
+                    historial: ticketActualizado.history || [],
+                    comentarios: ticketActualizado.comments || [],
+                };
+            });
         }
       )
-      .subscribe((status) => {
-          if (status === 'SUBSCRIBED') {
-        }
-      });
+      .subscribe();
     return () => {
       supabase.removeChannel(channel);
     };
-  }, []); 
+  }, [selectedTicket?.id]); // <
 
   const getCategoryBadge = (cat?: string) => {
     switch(cat) {

@@ -2,207 +2,253 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { createTicketAction, getDestinatariosAction } from "@/actions/ticketActions"; 
-import { sendEmailAction } from "@/actions/emailAction"; 
-import { Ticket } from "@/types/ticket";
-import { motion } from "framer-motion";
-import { createClient } from "@/utils/supabase/client"; 
-import { FaFire, FaTools, FaCoffee } from "react-icons/fa";
+import { createTicketAction } from "@/actions/ticketActions"; 
+import { createClient } from "@/utils/supabase/client"; // <--- Necesario para subir foto
+import { motion, AnimatePresence } from "framer-motion";
+import { FaExclamationTriangle, FaUpload, FaTimes, FaCheck, FaArrowLeft, FaSpinner } from "react-icons/fa";
+import Link from "next/link";
 
 export default function CreateTicketPage() {
   const router = useRouter();
-  const supabase = createClient(); 
-
-  const [titulo, setTitulo] = useState("");
-  const [descripcion, setDescripcion] = useState("");
-  const [prioridad, setPrioridad] = useState<"alta" | "media" | "baja">("media");
-  const [categoria, setCategoria] = useState("soporte");
-  
-  const [archivo, setArchivo] = useState<File | null>(null); 
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isUploading, setIsUploading] = useState(false); // Nuevo estado para saber si sube foto
+  const [uploadSuccess, setUploadSuccess] = useState(false); // Para mostrar check verde
 
-  function playAlertSound() {
-    const ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
-    const playBeep = (startTime: number, freq: number) => {
-      const osc = ctx.createOscillator();
-      const gain = ctx.createGain();
-      osc.connect(gain);
-      gain.connect(ctx.destination);
-      osc.type = "square";
-      osc.frequency.value = freq;
-      osc.start(startTime);
-      osc.stop(startTime + 0.1);
-      gain.gain.setValueAtTime(0.1, startTime);
-      gain.gain.exponentialRampToValueAtTime(0.001, startTime + 0.1);
-    };
-    const now = ctx.currentTime;
-    playBeep(now, 880);       
-    playBeep(now + 0.15, 880); 
-  }
+  // Estado del formulario
+  const [formData, setFormData] = useState({
+    titulo: "",
+    categoria: "soporte",
+    descripcion: "",
+    prioridad: "media", 
+    imageUrl: "" // Aquí se guardará el link final de la foto
+  });
 
-  async function uploadImage(file: File): Promise<string | null> {
+  const [showWarningModal, setShowWarningModal] = useState(false);
+
+  // --- LÓGICA DE SUBIDA REAL A SUPABASE ---
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setIsUploading(true);
+    setUploadSuccess(false);
+
     try {
+      const supabase = createClient();
+      
+      // 1. Crear un nombre único para el archivo (ej: 82374-nombrefoto.jpg)
       const fileExt = file.name.split('.').pop();
-      const fileName = `${Date.now()}.${fileExt}`; 
+      const fileName = `${Math.random().toString(36).substring(2, 15)}_${Date.now()}.${fileExt}`;
       const filePath = `${fileName}`;
-      const { error: uploadError } = await supabase.storage.from('tickets').upload(filePath, file);
+
+      // 2. Subir a la carpeta 'evidence'
+      const { error: uploadError } = await supabase.storage
+        .from('evidence') // <--- Asegúrate que tu bucket se llame así
+        .upload(filePath, file);
+
       if (uploadError) throw uploadError;
-      const { data } = supabase.storage.from('tickets').getPublicUrl(filePath);
-      return data.publicUrl;
+
+      // 3. Obtener el Link Público para guardarlo en la base de datos
+      const { data } = supabase.storage.from('evidence').getPublicUrl(filePath);
+
+      // 4. Guardar el link en el estado
+      setFormData(prev => ({ ...prev, imageUrl: data.publicUrl }));
+      setUploadSuccess(true);
+      
     } catch (error) {
       console.error("Error subiendo imagen:", error);
-      return null;
+      alert("Error al subir la imagen. Intenta de nuevo.");
+    } finally {
+      setIsUploading(false);
     }
-  }
+  };
+  // ----------------------------------------
+
+  const handlePriorityChange = (priority: string) => {
+    if (priority === 'alta') setShowWarningModal(true);
+    setFormData({ ...formData, prioridad: priority });
+  };
+
+  const cancelHighPriority = () => {
+    setFormData({ ...formData, prioridad: 'media' });
+    setShowWarningModal(false);
+  };
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
+    if (!formData.titulo || !formData.descripcion) return alert("Por favor completa los campos obligatorios");
+    
+    // Evitar enviar si la imagen aún se está subiendo
+    if (isUploading) return alert("Espera a que termine de subir la imagen.");
+
     setIsSubmitting(true);
-
-    if (prioridad === "alta") playAlertSound();
-
-    let createdBy = "Usuario Web";
     try {
-        const userLocal = JSON.parse(localStorage.getItem("sessionUser") || "{}");
-        if (userLocal.name || userLocal.full_name) createdBy = userLocal.name || userLocal.full_name;
-    } catch {}
+        const newTicket: any = {
+            titulo: formData.titulo,
+            descripcion: formData.descripcion,
+            estado: "pendiente",
+            prioridad: formData.prioridad,
+            category: formData.categoria,
+            creadoPor: "Usuario", 
+            historial: [{ 
+                fecha: new Date().toLocaleString(), 
+                mensaje: "Ticket creado exitosamente", 
+                usuario: "Sistema" 
+            }],
+            comentarios: [],
+            imageUrl: formData.imageUrl || null
+        };
 
-    let uploadedImageUrl = undefined;
-    if (archivo) {
-        const url = await uploadImage(archivo);
-        if (url) uploadedImageUrl = url;
-    }
-
-    const nuevoTicket: Ticket = {
-      id: 0, 
-      titulo,
-      descripcion,
-      prioridad,
-      estado: "pendiente",
-      category: categoria, 
-      creadoPor: createdBy, 
-      fechaCreacion: new Date().toLocaleString(),
-      leido: false,
-      comentarios: [],
-      historial: [
-        { fecha: new Date().toLocaleString(), accion: "Ticket creado", usuario: createdBy },
-      ],
-      imageUrl: uploadedImageUrl 
-    };
-
-    try {
-      await createTicketAction(nuevoTicket);
-      if (prioridad === "alta") {
-        const listaDestinatarios = await getDestinatariosAction();
-        if (listaDestinatarios && listaDestinatarios.length > 0) {
-            const linkPlataforma = typeof window !== 'undefined' ? `${window.location.origin}/ticket` : 'http://localhost:3000/ticket';
-            
-            await sendEmailAction({
-              to: listaDestinatarios.join(','), 
-              subject: `🚨 ALERTA [${categoria.toUpperCase()}]: ${titulo}`,
-              ticketData: {
-                titulo,
-                descripcion,
-                prioridad: prioridad.toUpperCase(),
-                creadoPor: createdBy,
-                link: linkPlataforma
-              }
-            });
-        }
-      }
-      router.push("/ticket");
+        await createTicketAction(newTicket);
+        router.push("/dashboard");
     } catch (error) {
-      console.error("Error general:", error);
-      alert("Error al procesar el ticket.");
+        alert("Error al crear ticket");
     } finally {
-      setIsSubmitting(false);
+        setIsSubmitting(false);
     }
   }
 
-  const prioridadesConfig = [
-    { 
-      id: "baja", 
-      label: "Baja", 
-      emoji: <FaCoffee className="w-8 h-8 text-emerald-600" />, 
-      colorClass: "bg-emerald-50 border-emerald-200 text-emerald-900", 
-      activeClass: "ring-2 ring-emerald-600 bg-emerald-100" 
-    },
-    { 
-      id: "media", 
-      label: "Media", 
-      emoji: <FaTools className="w-8 h-8 text-yellow-600" />, 
-      colorClass: "bg-yellow-50 border-yellow-200 text-yellow-900", 
-      activeClass: "ring-2 ring-yellow-600 bg-yellow-100" 
-    },
-    { 
-      id: "alta", 
-      label: "Alta", 
-      emoji: <FaFire className="w-8 h-8 text-red-600" />, 
-      colorClass: "bg-red-50 border-red-200 text-red-900", 
-      activeClass: "ring-2 ring-red-600 bg-red-100" 
-    },
-  ];
-
   return (
-    <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="max-w-2xl mx-auto">
-      <div className="bg-white border-2 border-gray-300 rounded-2xl shadow-xl overflow-hidden">
-        <div className={`p-6 text-white transition-colors duration-300 ${prioridad === 'alta' ? 'bg-red-600' : 'bg-gradient-to-r from-blue-700 to-indigo-700'}`}>
-          <h1 className="text-2xl font-bold flex items-center gap-2">
-            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4v16m8-8H4"></path></svg>
-            Crear Ticket Corporativo
-          </h1>
-          <p className="text-blue-50 text-sm mt-1 font-medium">
-            {prioridad === 'alta' ? "⚠️ ALERTA CRÍTICA: Se notificará al personal." : "Reporte de incidencia regular."}
-          </p>
+    <div className="min-h-screen bg-gray-100 p-6 flex items-center justify-center">
+      
+      <motion.div 
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="w-full max-w-2xl bg-white rounded-2xl shadow-xl overflow-hidden"
+      >
+        <div className={`p-6 text-white transition-colors duration-300 flex justify-between items-center ${formData.prioridad === 'alta' ? 'bg-red-600' : 'bg-slate-900'}`}>
+            <div>
+                <h1 className="text-2xl font-bold flex items-center gap-2">
+                    {formData.prioridad === 'alta' && <FaExclamationTriangle className="animate-pulse" />}
+                    Crear Ticket Corporativo
+                </h1>
+                {formData.prioridad === 'alta' ? (
+                    <p className="text-red-100 text-sm font-bold mt-1 bg-red-800/30 inline-block px-2 py-0.5 rounded">
+                        ⚠️ ALERTA CRÍTICA: Se notificará al personal inmediatamente.
+                    </p>
+                ) : (
+                    <p className="text-slate-400 text-sm mt-1">Reporta una incidencia técnica.</p>
+                )}
+            </div>
+            <Link href="/dashboard" className="bg-white/10 hover:bg-white/20 p-2 rounded-full transition-colors">
+                <FaArrowLeft />
+            </Link>
         </div>
 
         <form onSubmit={handleSubmit} className="p-8 space-y-6">
-          <div className="space-y-2">
-            <label className="text-base font-bold text-gray-900">Título</label>
-            <input className="w-full p-4 bg-white border-2 border-gray-300 rounded-xl text-gray-900 placeholder-gray-600 focus:border-blue-600 font-medium outline-none" placeholder="Ej: Falla en servidor..." value={titulo} onChange={(e) => setTitulo(e.target.value)} required />
-          </div>
-
-          <div className="space-y-2">
-            <label className="text-base font-bold text-gray-900">Departamento Responsable</label>
-            <select 
-                value={categoria}
-                onChange={(e) => setCategoria(e.target.value)}
-                className="w-full p-4 bg-white border-2 border-gray-300 rounded-xl text-gray-900 font-medium outline-none focus:border-blue-600 appearance-none cursor-pointer">
-                <option value="soporte">🔧 Soporte Técnico (General)</option>
-                <option value="desarrollo">💻 Desarrollo / Sistemas</option>
-                <option value="rrhh">👥 Recursos Humanos</option>
-            </select>
-          </div>
-
-          <div className="space-y-2">
-            <label className="text-base font-bold text-gray-900">Descripción</label>
-            <textarea className="w-full p-4 bg-white border-2 border-gray-300 rounded-xl text-gray-900 placeholder-gray-600 focus:border-blue-600 font-medium outline-none min-h-[120px]" placeholder="Detalles del problema..." value={descripcion} onChange={(e) => setDescripcion(e.target.value)} required />
-          </div>
-
-          <div className="space-y-2">
-            <label className="text-base font-bold text-gray-900 flex items-center gap-2">📸 Evidencia (Opcional)</label>
-            <div className="border-2 border-dashed border-gray-400 rounded-xl p-6 hover:bg-gray-100 text-center cursor-pointer relative bg-gray-50">
-                <input type="file" accept="image/*" onChange={(e) => setArchivo(e.target.files ? e.target.files[0] : null)} className="absolute inset-0 w-full h-full opacity-0 cursor-pointer" />
-                {archivo ? <div className="text-emerald-700 font-bold">✅ Archivo listo: {archivo.name}</div> : <div className="text-gray-700 font-medium">Haz clic para subir imagen</div>}
+            
+            <div>
+                <label className="block text-sm font-bold text-gray-700 mb-1">Título</label>
+                <input 
+                    type="text" 
+                    value={formData.titulo}
+                    onChange={e => setFormData({...formData, titulo: e.target.value})}
+                    className="w-full p-3 border-2 border-gray-200 rounded-xl outline-none focus:border-blue-500 transition-colors font-medium text-gray-900 bg-white placeholder-gray-400"
+                    placeholder="Ej: Falla en servidor principal..."
+                />
             </div>
-          </div>
 
-          <div className="space-y-2">
-            <label className="text-base font-bold text-gray-900">Prioridad</label>
-            <div className="grid grid-cols-3 gap-3">
-              {prioridadesConfig.map((p) => (
-                <div key={p.id} onClick={() => setPrioridad(p.id as any)} className={`cursor-pointer rounded-xl border-2 p-3 flex flex-col items-center justify-center gap-1 ${prioridad === p.id ? p.activeClass : `border-gray-200 bg-white hover:border-gray-400`}`}>
-                  <span className="text-3xl">{p.emoji}</span>
-                  <span className="text-sm font-bold text-gray-900">{p.label}</span>
+            <div>
+                <label className="block text-sm font-bold text-gray-700 mb-1">Departamento Responsable</label>
+                <select 
+                    value={formData.categoria}
+                    onChange={e => setFormData({...formData, categoria: e.target.value})}
+                    className="w-full p-3 border-2 border-gray-200 rounded-xl outline-none focus:border-blue-500 transition-colors font-medium text-gray-900 bg-white"
+                >
+                    <option value="soporte">🔧 Soporte Técnico (General)</option>
+                    <option value="desarrollo">💻 Desarrollo / Software</option>
+                    <option value="rrhh">👥 Recursos Humanos</option>
+                </select>
+            </div>
+
+            <div>
+                <label className="block text-sm font-bold text-gray-700 mb-1">Descripción</label>
+                <textarea 
+                    value={formData.descripcion}
+                    onChange={e => setFormData({...formData, descripcion: e.target.value})}
+                    className="w-full p-3 border-2 border-gray-200 rounded-xl outline-none focus:border-blue-500 transition-colors min-h-[120px] resize-none font-medium text-gray-900 bg-white placeholder-gray-400"
+                    placeholder="Detalles del problema..."
+                />
+            </div>
+
+            {/* --- SECCIÓN DE EVIDENCIA MEJORADA --- */}
+            <div>
+                <label className="block text-sm font-bold text-gray-700 mb-1">Evidencia (Opcional)</label>
+                <div className={`relative border-2 border-dashed rounded-xl transition-all group cursor-pointer bg-white ${uploadSuccess ? 'border-emerald-500 bg-emerald-50' : 'border-gray-300 hover:bg-gray-50'}`}>
+                    
+                    {/* Input invisible */}
+                    <input type="file" onChange={handleImageUpload} className="absolute inset-0 w-full h-full opacity-0 cursor-pointer" accept="image/*" disabled={isUploading} />
+                    
+                    <div className="p-6 flex flex-col items-center justify-center text-gray-400 group-hover:text-blue-500">
+                        {isUploading ? (
+                            <>
+                                <FaSpinner className="text-2xl mb-2 animate-spin text-blue-600" />
+                                <span className="text-sm font-bold text-blue-600">Subiendo imagen...</span>
+                            </>
+                        ) : uploadSuccess ? (
+                            <>
+                                <FaCheck className="text-2xl mb-2 text-emerald-600" />
+                                <span className="text-sm font-bold text-emerald-600">¡Imagen cargada correctamente!</span>
+                                <span className="text-xs text-emerald-500">Clic para cambiarla</span>
+                            </>
+                        ) : (
+                            <>
+                                <FaUpload className="text-2xl mb-2" />
+                                <span className="text-sm font-bold">Haz clic para subir imagen</span>
+                            </>
+                        )}
+                    </div>
                 </div>
-              ))}
             </div>
-          </div>
-          <motion.button whileHover={{ scale: 1.01 }} whileTap={{ scale: 0.98 }} disabled={isSubmitting} className={`w-full py-4 rounded-xl font-bold text-lg text-white shadow-lg ${isSubmitting ? "bg-gray-500" : prioridad === 'alta' ? "bg-red-700" : "bg-blue-700"}`}>
-            {isSubmitting ? "Procesando..." : "Registrar Ticket"}
-          </motion.button>
+
+            <div>
+                <label className="block text-sm font-bold text-gray-700 mb-2">Prioridad</label>
+                <div className="grid grid-cols-3 gap-4">
+                    <button type="button" onClick={() => handlePriorityChange('baja')} className={`p-3 rounded-xl border-2 font-bold flex flex-col items-center gap-1 transition-all ${formData.prioridad === 'baja' ? 'bg-emerald-50 border-emerald-500 text-emerald-700' : 'bg-white border-gray-200 text-gray-400 hover:border-gray-300'}`}>
+                        <span className="text-xl">☕</span> Baja
+                    </button>
+                    <button type="button" onClick={() => handlePriorityChange('media')} className={`p-3 rounded-xl border-2 font-bold flex flex-col items-center gap-1 transition-all ${formData.prioridad === 'media' ? 'bg-yellow-50 border-yellow-500 text-yellow-700' : 'bg-white border-gray-200 text-gray-400 hover:border-gray-300'}`}>
+                        <span className="text-xl">🛠️</span> Media
+                    </button>
+                    <button type="button" onClick={() => handlePriorityChange('alta')} className={`p-3 rounded-xl border-2 font-bold flex flex-col items-center gap-1 transition-all ${formData.prioridad === 'alta' ? 'bg-red-50 border-red-600 text-red-700 shadow-lg shadow-red-100 scale-105' : 'bg-white border-gray-200 text-gray-400 hover:border-gray-300'}`}>
+                        <span className="text-xl">🔥</span> Alta
+                    </button>
+                </div>
+            </div>
+
+            <button 
+                type="submit" 
+                disabled={isSubmitting || isUploading} 
+                className={`w-full py-4 rounded-xl text-white font-bold text-lg shadow-lg transition-all transform active:scale-[0.98] ${formData.prioridad === 'alta' ? 'bg-red-600 hover:bg-red-700 shadow-red-200' : 'bg-slate-900 hover:bg-slate-800 shadow-slate-300'} ${isUploading ? 'opacity-50 cursor-not-allowed' : ''}`}
+            >
+                {isSubmitting ? "Registrando..." : "Registrar Ticket"}
+            </button>
+
         </form>
-      </div>
-    </motion.div>
+      </motion.div>
+
+      <AnimatePresence>
+        {showWarningModal && (
+            <>
+                <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 bg-black/60 z-50 backdrop-blur-sm" />
+                <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.9, opacity: 0 }} className="fixed inset-0 z-[60] flex items-center justify-center p-4 pointer-events-none">
+                    <div className="bg-white w-full max-w-sm rounded-2xl shadow-2xl p-6 pointer-events-auto border-t-8 border-red-600">
+                        <div className="flex flex-col items-center text-center">
+                            <div className="bg-red-100 text-red-600 p-4 rounded-full mb-4 text-3xl"><FaExclamationTriangle /></div>
+                            <h3 className="text-xl font-bold text-gray-900 mb-2">¿Estás seguro?</h3>
+                            <p className="text-gray-600 text-sm mb-6">
+                                Marcar este ticket como <span className="font-bold text-red-600">ALTA PRIORIDAD</span> enviará una notificación al personal. <br/><br/>
+                            </p>
+                            <div className="flex flex-col gap-3 w-full">
+                                <button onClick={() => setShowWarningModal(false)} className="w-full py-3 bg-red-600 hover:bg-red-700 text-white font-bold rounded-xl shadow-lg shadow-red-200 transition-colors">Sí, es una emergencia</button>
+                                <button onClick={cancelHighPriority} className="w-full py-3 bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold rounded-xl transition-colors">Cancelar (Volver a Media)</button>
+                            </div>
+                        </div>
+                    </div>
+                </motion.div>
+            </>
+        )}
+      </AnimatePresence>
+    </div>
   );
 }
