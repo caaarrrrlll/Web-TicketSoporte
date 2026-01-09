@@ -117,7 +117,7 @@ export function Sidebar() {
                     </button>
                 </div>
             </div>
-            <p className="text-center text-[10px] text-slate-600 mt-3">v2.5.0 Gasintec Release</p>
+            <p className="text-center text-[10px] text-slate-600 mt-3">v1.0 Gasintec Release</p>
         </div>
       </motion.aside>
 

@@ -181,9 +181,13 @@ export default function TicketPage() {
                             </span>
                         </div>
                         <h3 className="text-lg font-bold text-gray-900 leading-tight group-hover:text-blue-700 transition-colors">{ticket.titulo}</h3>
-                        <div className="flex items-center gap-4 text-xs text-gray-500 font-medium">
+                        <div className="flex items-center gap-2 text-xs text-gray-500 font-semibold mt-1">
                           <span className="flex items-center gap-1"><FaUserCircle className="text-gray-400"/> {ticket.creadoPor}</span>
-                          <span className="flex items-center gap-1"><FaCalendarAlt className="text-gray-400"/> {ticket.fechaCreacion}</span>
+                          <span>•</span>
+                            <span className="flex items-center gap-1">
+                              <FaCalendarAlt className="text-gray-400" /> 
+                              {ticket.fechaCreacion.toString().split(',')[0]}
+                            </span>                        
                         </div>
                       </div>
 
