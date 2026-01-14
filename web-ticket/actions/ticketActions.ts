@@ -5,7 +5,6 @@ import { Ticket } from '@/types/ticket'
 import { revalidatePath } from 'next/cache'
 import nodemailer from 'nodemailer';
 
-// --- 1. FUNCIÓN AUXILIAR PARA ENVIAR CORREOS ---
 async function enviarAlertaCorreo(titulo: string, descripcion: string, autor: string, destinatarios: string[]) {
   try {
     const transporter = nodemailer.createTransport({
@@ -52,14 +51,12 @@ async function enviarAlertaCorreo(titulo: string, descripcion: string, autor: st
 export async function getDestinatariosAction(categoriaTicket: string) {
   const supabase = await createClient()
     const mapaRoles: Record<string, string> = {
-    'soporte': 'soporte',           
+    'soporte': 'soporte',          
     'desarrollo': 'desarrollo',    
     'rrhh': 'Recursos Humanos'     
   };
 
   const rolObjetivo = mapaRoles[categoriaTicket] || categoriaTicket;
-
-  console.log(`🔍 Buscando correos para categoría: "${categoriaTicket}" -> Rol DB: "${rolObjetivo}"`);
   const rolesBuscados = ['gerente', rolObjetivo]; 
 
   const { data, error } = await supabase
@@ -112,14 +109,10 @@ export async function createTicketAction(ticket: Ticket) {
     throw new Error(error.message)
   }
 
-  // --- LÓGICA DE ALERTA ---
   if (ticket.prioridad === 'alta') {
     const categoria = ticket.category || 'soporte';
     const listaCorreos = await getDestinatariosAction(categoria);
-    
-    // B. Enviamos el correo
     if (listaCorreos.length > 0) {
-      console.log(`📧 Enviando alerta de departamento [${categoria}] a:`, listaCorreos);
       enviarAlertaCorreo(ticket.titulo, ticket.descripcion, nombreReal, listaCorreos);
     }
   }
@@ -128,11 +121,32 @@ export async function createTicketAction(ticket: Ticket) {
   revalidatePath('/dashboard')
 }
 
-
 export async function getTicketsAction(): Promise<Ticket[]> {
   const supabase = await createClient()
-  const { data, error } = await supabase.from('tickets').select('*').order('created_at', { ascending: false })
+  
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return []
+
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('role')
+    .eq('id', user.id)
+    .single()
+  
+  const userRoles = profile?.role || []
+  const rolesAdmin = ['soporte', 'gerente', 'desarrollo', 'rrhh'] 
+  const esAdmin = userRoles.some((r: string) => rolesAdmin.includes(r))
+
+  let query = supabase.from('tickets').select('*').order('created_at', { ascending: false })
+
+  if (!esAdmin) {
+    query = query.eq('user_id', user.id)
+  }
+
+  const { data, error } = await query
+
   if (error) return []
+  
   return data.map((t: any) => ({
     id: t.id,
     titulo: t.title,
@@ -140,7 +154,7 @@ export async function getTicketsAction(): Promise<Ticket[]> {
     estado: t.status,
     prioridad: t.priority,
     creadoPor: t.creator_name,
-    fechaCreacion: new Date(t.created_at).toLocaleString(),
+    fechaCreacion: new Date(t.created_at).toLocaleString('es-EC', { timeZone: 'America/Guayaquil' }),
     historial: t.history || [],
     comentarios: t.comments || [],
     imageUrl: t.image_url,

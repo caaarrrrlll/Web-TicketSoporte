@@ -7,8 +7,11 @@ import { Ticket } from "@/types/ticket";
 import { motion, AnimatePresence } from "framer-motion"; 
 import Link from "next/link";
 import { createClient } from "@/utils/supabase/client"; 
-import { toast } from 'sonner'; 
-import { FaBuilding, FaUserCircle, FaCalendarAlt, FaComments, FaTimes, FaExpand, FaLaptopCode, FaTools, FaFolderOpen, FaHourglassHalf, FaCog, FaCheck 
+import { toast } from 'sonner';
+import { 
+  FaBuilding, FaUserCircle, FaCalendarAlt, FaComments, FaTimes, 
+  FaExpand, FaLaptopCode, FaTools, FaFolderOpen, 
+  FaHourglassHalf, FaCog, FaCheck 
 } from 'react-icons/fa'; 
 
 export default function DashboardPage() {
@@ -25,6 +28,7 @@ export default function DashboardPage() {
 
   const [stats, setStats] = useState({ total: 0, pendientes: 0, enProgreso: 0, resueltos: 0, criticos: 0 });
 
+  // --- FUNCIÓN DE CARGA SIMPLE (SIN OPTIMIZACIONES COMPLEJAS QUE ROMPEN EL REALTIME) ---
   async function loadData() {
     try {
       const supabase = createClient();
@@ -34,10 +38,12 @@ export default function DashboardPage() {
         if (profile?.role && profile.role.includes('gerente')) setIsAdmin(true);
       }
 
+      // Obtenemos tickets frescos
       const data = await getTicketsAction(); 
       const sortedData = data.sort((a: Ticket, b: Ticket) => b.id - a.id);
       setTickets(sortedData);
 
+      // Actualizamos contadores
       const counts = {
         total: data.length,
         pendientes: data.filter(t => t.estado === "pendiente").length,
@@ -47,10 +53,6 @@ export default function DashboardPage() {
       };
       setStats(counts);
 
-      if (selectedTicket) {
-        const updatedSelected = sortedData.find(t => t.id === selectedTicket.id);
-        if (updatedSelected) setSelectedTicket(updatedSelected);
-      }
     } catch (error) { 
       console.error("Error cargando dashboard:", error); 
     } finally { 
@@ -58,9 +60,40 @@ export default function DashboardPage() {
     }
   }
 
+  // Carga inicial al entrar
   useEffect(() => { loadData(); }, []);
 
-useEffect(() => {
+  // --- EFECTO DE TIEMPO REAL GLOBAL (CORREGIDO) ---
+  // Este efecto solo se ejecuta UNA vez al montar el componente y escucha todo.
+  useEffect(() => {
+    const supabase = createClient();
+    console.log("🔌 Iniciando escucha de tickets en tiempo real...");
+
+    const channel = supabase
+      .channel('lista-tickets-global') 
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'tickets' }, 
+        (payload) => {
+           console.log("🔔 Cambio detectado en tickets (INSERT/UPDATE/DELETE):", payload);
+           // Apenas detecta cambio, recarga la lista
+           loadData();
+           
+           // Opcional: Feedback visual discreto (puedes quitarlo si molesta)
+           if (payload.eventType === 'INSERT') {
+             toast.success("Nuevo ticket recibido");
+           }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, []); // Array vacío para que NUNCA se desconecte mientras estés en la página
+
+  // --- EFECTO PARA ACTUALIZAR EL TICKET ABIERTO (CHAT) ---
+  useEffect(() => {
     if (!selectedTicket) return;
 
     const supabase = createClient();
@@ -76,30 +109,31 @@ useEffect(() => {
           filter: `id=eq.${selectedTicket.id}` 
         },
         (payload: any) => {
-            const ticketActualizado = payload.new;      
+            const ticketActualizado = payload.new;
+            
             const datosNuevos = {
                 estado: ticketActualizado.status,
                 prioridad: ticketActualizado.priority,
                 historial: ticketActualizado.history || [],
                 comentarios: ticketActualizado.comments || [],
             };
+
+            // Actualizamos el modal abierto
             setSelectedTicket((prev) => {
                 if (!prev) return null;
                 return { ...prev, ...datosNuevos };
             });
-            setTickets((prevTickets) => prevTickets.map((t) => {
-                if (t.id === ticketActualizado.id) {
-                     return { ...t, ...datosNuevos };
-                }
-                return t;
-            }));
+            
+            // También forzamos recarga de la lista de fondo por si cambió el estado
+            loadData();
         }
       )
       .subscribe();
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [selectedTicket?.id]);
+  }, [selectedTicket?.id]); 
+
 
   const getCategoryBadge = (cat?: string) => {
     switch(cat) {
@@ -130,13 +164,10 @@ useEffect(() => {
     
     try {
         await addCommentAction(selectedTicket.id, comentarioObj);
-        setNewComment("");  
-        const updatedTicket = { ...selectedTicket, comentarios: [...(selectedTicket.comentarios || []), comentarioObj] };      
+        setNewComment("");
+        // Actualización optimista
+        const updatedTicket = { ...selectedTicket, comentarios: [...(selectedTicket.comentarios || []), comentarioObj] };
         setSelectedTicket(updatedTicket);
-        setTickets(prevTickets => prevTickets.map(t => 
-            t.id === selectedTicket.id ? updatedTicket : t
-        ));
-
     } catch (error) { 
         toast.error("Error al enviar comentario"); 
     } finally { setIsSendingComment(false); }
@@ -257,14 +288,16 @@ useEffect(() => {
                           </div>
                           
                           <p className="font-bold text-gray-900 group-hover:text-blue-700 transition-colors text-lg">{ticket.titulo}</p>
+                          
                           <div className="flex items-center gap-2 text-xs text-gray-500 font-semibold mt-1">
                             <span className="flex items-center gap-1"><FaUserCircle /> {ticket.creadoPor}</span>
                             <span>•</span>
                             <span className="flex items-center gap-1">
-                              <FaCalendarAlt className="text-gray-400" /> 
-                              {ticket.fechaCreacion.toString().split(',')[0]}
+                                <FaCalendarAlt className="text-gray-400" />
+                                {ticket.fechaCreacion.toString().split(',')[0]}
                             </span>
                           </div>
+
                         </div>
                           
                         <span className={`text-xs px-3 py-1 rounded-full border-2 font-bold capitalize ${ticket.estado === 'pendiente' ? 'bg-gray-100 text-gray-700 border-gray-300' : ticket.estado === 'en_progreso' ? 'bg-blue-50 text-blue-700 border-blue-200' : 'bg-emerald-50 text-emerald-700 border-emerald-200'}`}>
@@ -388,44 +421,6 @@ useEffect(() => {
                 <button className="absolute top-6 right-6 text-white/70 hover:text-white bg-white/10 hover:bg-white/20 p-3 rounded-full transition-all"><FaTimes className="w-8 h-8" /></button>
                 <motion.img initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.9, opacity: 0 }} src={selectedImage} className="max-h-[90vh] max-w-[90vw] object-contain rounded-lg shadow-2xl pointer-events-none select-none" alt="Evidencia Fullscreen" />
             </motion.div>
-        )}
-      </AnimatePresence>
-
-      <AnimatePresence>
-        {showUserModal && (
-          <>
-            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setShowUserModal(false)} className="fixed inset-0 bg-black/60 z-50 backdrop-blur-sm" />
-            <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} className="fixed inset-0 z-[60] flex items-center justify-center p-4 pointer-events-none">
-              <div className="bg-white w-full max-w-lg rounded-2xl shadow-2xl border-2 border-purple-100 pointer-events-auto overflow-hidden">
-                <div className="bg-purple-700 p-6 text-white">
-                  <h2 className="text-2xl font-bold"><FaUserCircle /> Crear Nuevo Usuario</h2>
-                  <p className="text-purple-200 text-sm mt-1">Registra empleados y asigna roles.</p>
-                </div>
-                <form onSubmit={handleCreateUser} className="p-8 space-y-5">
-                  <div><label className="block text-sm font-bold text-gray-900 mb-1">Nombre</label><input type="text" className="w-full p-3 border-2 border-gray-300 rounded-xl text-gray-900 font-medium outline-none focus:border-purple-600" value={newUserForm.fullName} onChange={e => setNewUserForm({...newUserForm, fullName: e.target.value})} required /></div>
-                  <div><label className="block text-sm font-bold text-gray-900 mb-1">Correo</label><input type="email" className="w-full p-3 border-2 border-gray-300 rounded-xl text-gray-900 font-medium outline-none focus:border-purple-600" value={newUserForm.email} onChange={e => setNewUserForm({...newUserForm, email: e.target.value})} required /></div>
-                  <div><label className="block text-sm font-bold text-gray-900 mb-1">Contraseña</label><input type="password" className="w-full p-3 border-2 border-gray-300 rounded-xl text-gray-900 font-medium outline-none focus:border-purple-600" value={newUserForm.password} onChange={e => setNewUserForm({...newUserForm, password: e.target.value})} required /></div>
-                  <div>
-                    <label className="block text-sm font-bold text-gray-900 mb-2">Roles</label>
-                    <div className="grid grid-cols-2 gap-3">
-                      {['desarrollo', 'soporte', 'rrhh'].map((rol) => (
-                        <div key={rol} onClick={() => handleRoleToggle(rol)} className={`cursor-pointer p-3 rounded-xl border-2 flex items-center gap-2 transition-all select-none ${newUserForm.roles.includes(rol) ? 'border-purple-600 bg-purple-50 text-purple-900' : 'border-gray-200 text-gray-600'}`}>
-                          <div className={`w-5 h-5 rounded border flex items-center justify-center ${newUserForm.roles.includes(rol) ? 'bg-purple-600 border-purple-600' : 'border-gray-400 bg-white'}`}>
-                            {newUserForm.roles.includes(rol) && <svg className="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M5 13l4 4L19 7" /></svg>}
-                          </div>
-                          <span className="font-bold capitalize">{rol}</span>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                  <div className="pt-4 flex gap-3">
-                    <button type="button" onClick={() => setShowUserModal(false)} className="flex-1 py-3 font-bold text-gray-600 hover:bg-gray-100 rounded-xl">Cancelar</button>
-                    <button type="submit" disabled={isCreatingUser} className="flex-1 py-3 bg-purple-700 hover:bg-purple-800 text-white font-bold rounded-xl shadow-lg">{isCreatingUser ? "Creando..." : "Registrar"}</button>
-                  </div>
-                </form>
-              </div>
-            </motion.div>
-          </>
         )}
       </AnimatePresence>
     </div>
