@@ -90,9 +90,8 @@ export default function DashboardPage() {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, []); // Array vacío para que NUNCA se desconecte mientras estés en la página
+  }, []); 
 
-  // --- EFECTO PARA ACTUALIZAR EL TICKET ABIERTO (CHAT) ---
   useEffect(() => {
     if (!selectedTicket) return;
 
