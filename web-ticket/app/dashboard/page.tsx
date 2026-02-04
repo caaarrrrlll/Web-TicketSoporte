@@ -8,11 +8,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import Link from "next/link";
 import { createClient } from "@/utils/supabase/client"; 
 import { toast } from 'sonner';
-import { 
-  FaBuilding, FaUserCircle, FaCalendarAlt, FaComments, FaTimes, 
-  FaExpand, FaLaptopCode, FaTools, FaFolderOpen, 
-  FaHourglassHalf, FaCog, FaCheck 
-} from 'react-icons/fa'; 
+import { FaBuilding, FaUserCircle, FaCalendarAlt, FaComments, FaTimes, FaExpand, FaLaptopCode, FaTools, FaFolderOpen, FaHourglassHalf, FaCog, FaCheck } from 'react-icons/fa'; 
 
 export default function DashboardPage() {
   const [tickets, setTickets] = useState<Ticket[]>([]);
@@ -22,28 +18,32 @@ export default function DashboardPage() {
   const [newComment, setNewComment] = useState("");
   const [isSendingComment, setIsSendingComment] = useState(false);
   const [isAdmin, setIsAdmin] = useState(false);
+  
   const [showUserModal, setShowUserModal] = useState(false);
   const [newUserForm, setNewUserForm] = useState({ fullName: "", email: "", password: "", roles: [] as string[] });
   const [isCreatingUser, setIsCreatingUser] = useState(false);
 
   const [stats, setStats] = useState({ total: 0, pendientes: 0, enProgreso: 0, resueltos: 0, criticos: 0 });
 
-  // --- FUNCIÓN DE CARGA SIMPLE (SIN OPTIMIZACIONES COMPLEJAS QUE ROMPEN EL REALTIME) ---
   async function loadData() {
     try {
       const supabase = createClient();
       const { data: { user } } = await supabase.auth.getUser();
+      
       if (user) {
         const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).single();
-        if (profile?.role && profile.role.includes('gerente')) setIsAdmin(true);
+        if (profile?.role) {
+            const roles = Array.isArray(profile.role) ? profile.role : [profile.role];
+            if (roles.includes('gerente')) {
+                setIsAdmin(true);
+            }
+        }
       }
 
-      // Obtenemos tickets frescos
       const data = await getTicketsAction(); 
       const sortedData = data.sort((a: Ticket, b: Ticket) => b.id - a.id);
       setTickets(sortedData);
 
-      // Actualizamos contadores
       const counts = {
         total: data.length,
         pendientes: data.filter(t => t.estado === "pendiente").length,
@@ -53,6 +53,10 @@ export default function DashboardPage() {
       };
       setStats(counts);
 
+      if (selectedTicket) {
+        const updatedSelected = sortedData.find(t => t.id === selectedTicket.id);
+        if (updatedSelected) setSelectedTicket(updatedSelected);
+      }
     } catch (error) { 
       console.error("Error cargando dashboard:", error); 
     } finally { 
@@ -60,28 +64,19 @@ export default function DashboardPage() {
     }
   }
 
-  // Carga inicial al entrar
   useEffect(() => { loadData(); }, []);
 
-  // --- EFECTO DE TIEMPO REAL GLOBAL (CORREGIDO) ---
-  // Este efecto solo se ejecuta UNA vez al montar el componente y escucha todo.
   useEffect(() => {
     const supabase = createClient();
-    console.log("🔌 Iniciando escucha de tickets en tiempo real...");
-
     const channel = supabase
-      .channel('lista-tickets-global') 
+      .channel('dashboard-global-realtime') 
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'tickets' }, 
         (payload) => {
-           console.log("🔔 Cambio detectado en tickets (INSERT/UPDATE/DELETE):", payload);
-           // Apenas detecta cambio, recarga la lista
-           loadData();
-           
-           // Opcional: Feedback visual discreto (puedes quitarlo si molesta)
+           loadData(); 
            if (payload.eventType === 'INSERT') {
-             toast.success("Nuevo ticket recibido");
+             toast.info("🔔 Nuevo ticket recibido");
            }
         }
       )
@@ -90,7 +85,7 @@ export default function DashboardPage() {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, []); 
+  }, []);
 
   useEffect(() => {
     if (!selectedTicket) return;
@@ -109,30 +104,31 @@ export default function DashboardPage() {
         },
         (payload: any) => {
             const ticketActualizado = payload.new;
-            
             const datosNuevos = {
                 estado: ticketActualizado.status,
                 prioridad: ticketActualizado.priority,
-                historial: ticketActualizado.history || [],
+                historial: ticketActualizado.history || [],  
                 comentarios: ticketActualizado.comments || [],
             };
 
-            // Actualizamos el modal abierto
             setSelectedTicket((prev) => {
                 if (!prev) return null;
                 return { ...prev, ...datosNuevos };
             });
             
-            // También forzamos recarga de la lista de fondo por si cambió el estado
-            loadData();
+            setTickets((prevTickets) => prevTickets.map((t) => {
+                if (t.id === ticketActualizado.id) {
+                     return { ...t, ...datosNuevos };
+                }
+                return t;
+            }));
         }
       )
       .subscribe();
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [selectedTicket?.id]); 
-
+  }, [selectedTicket?.id]);
 
   const getCategoryBadge = (cat?: string) => {
     switch(cat) {
@@ -164,9 +160,9 @@ export default function DashboardPage() {
     try {
         await addCommentAction(selectedTicket.id, comentarioObj);
         setNewComment("");
-        // Actualización optimista
         const updatedTicket = { ...selectedTicket, comentarios: [...(selectedTicket.comentarios || []), comentarioObj] };
         setSelectedTicket(updatedTicket);
+        setTickets(prev => prev.map(t => t.id === selectedTicket.id ? updatedTicket : t));
     } catch (error) { 
         toast.error("Error al enviar comentario"); 
     } finally { setIsSendingComment(false); }
@@ -420,6 +416,44 @@ export default function DashboardPage() {
                 <button className="absolute top-6 right-6 text-white/70 hover:text-white bg-white/10 hover:bg-white/20 p-3 rounded-full transition-all"><FaTimes className="w-8 h-8" /></button>
                 <motion.img initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.9, opacity: 0 }} src={selectedImage} className="max-h-[90vh] max-w-[90vw] object-contain rounded-lg shadow-2xl pointer-events-none select-none" alt="Evidencia Fullscreen" />
             </motion.div>
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {showUserModal && (
+          <>
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setShowUserModal(false)} className="fixed inset-0 bg-black/60 z-50 backdrop-blur-sm" />
+            <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} className="fixed inset-0 z-[60] flex items-center justify-center p-4 pointer-events-none">
+              <div className="bg-white w-full max-w-lg rounded-2xl shadow-2xl border-2 border-purple-100 pointer-events-auto overflow-hidden">
+                <div className="bg-purple-700 p-6 text-white">
+                  <h2 className="text-2xl font-bold"><FaUserCircle /> Crear Nuevo Usuario</h2>
+                  <p className="text-purple-200 text-sm mt-1">Registra empleados y asigna roles.</p>
+                </div>
+                <form onSubmit={handleCreateUser} className="p-8 space-y-5">
+                  <div><label className="block text-sm font-bold text-gray-900 mb-1">Nombre</label><input type="text" className="w-full p-3 border-2 border-gray-300 rounded-xl text-gray-900 font-medium outline-none focus:border-purple-600" value={newUserForm.fullName} onChange={e => setNewUserForm({...newUserForm, fullName: e.target.value})} required /></div>
+                  <div><label className="block text-sm font-bold text-gray-900 mb-1">Correo</label><input type="email" className="w-full p-3 border-2 border-gray-300 rounded-xl text-gray-900 font-medium outline-none focus:border-purple-600" value={newUserForm.email} onChange={e => setNewUserForm({...newUserForm, email: e.target.value})} required /></div>
+                  <div><label className="block text-sm font-bold text-gray-900 mb-1">Contraseña</label><input type="password" className="w-full p-3 border-2 border-gray-300 rounded-xl text-gray-900 font-medium outline-none focus:border-purple-600" value={newUserForm.password} onChange={e => setNewUserForm({...newUserForm, password: e.target.value})} required /></div>
+                  <div>
+                    <label className="block text-sm font-bold text-gray-900 mb-2">Roles</label>
+                    <div className="grid grid-cols-2 gap-3">
+                      {['desarrollo', 'soporte', 'rrhh'].map((rol) => (
+                        <div key={rol} onClick={() => handleRoleToggle(rol)} className={`cursor-pointer p-3 rounded-xl border-2 flex items-center gap-2 transition-all select-none ${newUserForm.roles.includes(rol) ? 'border-purple-600 bg-purple-50 text-purple-900' : 'border-gray-200 text-gray-600'}`}>
+                          <div className={`w-5 h-5 rounded border flex items-center justify-center ${newUserForm.roles.includes(rol) ? 'bg-purple-600 border-purple-600' : 'border-gray-400 bg-white'}`}>
+                            {newUserForm.roles.includes(rol) && <svg className="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M5 13l4 4L19 7" /></svg>}
+                          </div>
+                          <span className="font-bold capitalize">{rol}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                  <div className="pt-4 flex gap-3">
+                    <button type="button" onClick={() => setShowUserModal(false)} className="flex-1 py-3 font-bold text-gray-600 hover:bg-gray-100 rounded-xl">Cancelar</button>
+                    <button type="submit" disabled={isCreatingUser} className="flex-1 py-3 bg-purple-700 hover:bg-purple-800 text-white font-bold rounded-xl shadow-lg">{isCreatingUser ? "Creando..." : "Registrar"}</button>
+                  </div>
+                </form>
+              </div>
+            </motion.div>
+          </>
         )}
       </AnimatePresence>
     </div>

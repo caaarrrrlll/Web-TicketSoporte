@@ -25,52 +25,37 @@ async function enviarAlertaCorreo(titulo: string, descripcion: string, autor: st
         <div style="font-family: Arial, sans-serif; padding: 20px; background-color: #f3f4f6;">
           <div style="background-color: white; padding: 20px; border-radius: 10px; border-left: 5px solid #dc2626; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
             <h2 style="color: #dc2626; margin-top: 0;">⚠️ Nueva Incidencia de Alta Prioridad</h2>
-            <p style="font-size: 16px;">El usuario <strong>${autor}</strong> ha reportado un problema crítico que requiere atención inmediata.</p>
+            <p style="font-size: 16px;">El usuario <strong>${autor}</strong> ha reportado un problema crítico.</p>
             <hr style="border: 1px solid #eee; margin: 20px 0;">
             <h3 style="color: #111827;">${titulo}</h3>
             <p style="color: #4b5563; line-height: 1.5;">${descripcion}</p>
             <br>
-            <div style="text-align: center;">
-              <a href="https://ticket-soporte.vercel.app/dashboard" style="background-color: #dc2626; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: bold; display: inline-block;">
-                Ver Ticket en Dashboard
-              </a>
-            </div>
-            <p style="font-size: 12px; color: #9ca3af; margin-top: 20px; text-align: center;">Sistema de Notificaciones Automáticas - WebTicket</p>
+            <a href="https://ticket-soporte.vercel.app/dashboard" style="background-color: #dc2626; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px; font-weight: bold;">Ver en Dashboard</a>
           </div>
         </div>
       `
     };
 
     await transporter.sendMail(mailOptions);
-    console.log("✅ Correos de alerta enviados a:", destinatarios);
+    console.log("✅ Correos enviados a:", destinatarios);
   } catch (error) {
-    console.error("❌ Error enviando correo con Nodemailer:", error);
+    console.error("❌ Error enviando correo:", error);
   }
 }
 
 export async function getDestinatariosAction(categoriaTicket: string) {
   const supabase = await createClient()
-    const mapaRoles: Record<string, string> = {
+  const mapaRoles: Record<string, string> = {
     'soporte': 'soporte',          
     'desarrollo': 'desarrollo',    
     'rrhh': 'Recursos Humanos'     
   };
-
   const rolObjetivo = mapaRoles[categoriaTicket] || categoriaTicket;
   const rolesBuscados = ['gerente', rolObjetivo]; 
 
-  const { data, error } = await supabase
-    .from('profiles')
-    .select('email, full_name, role') 
-    .overlaps('role', rolesBuscados)
-
-  if (error || !data) {
-    console.error("Error buscando destinatarios:", error)
-    return []
-  }
-
-  return data.map(usuario => usuario.email)
-    .filter(email => email !== null) as string[]
+  const { data, error } = await supabase.from('profiles').select('email').overlaps('role', rolesBuscados)
+  if (error || !data) return []
+  return data.map(u => u.email).filter(e => e !== null) as string[]
 }
 
 export async function createTicketAction(ticket: Ticket) {
@@ -80,16 +65,13 @@ export async function createTicketAction(ticket: Ticket) {
 
   const { data: profile } = await supabase
     .from('profiles')
-    .select('full_name, email')
+    .select('full_name, email, estacion_id ( nombre )') 
     .eq('id', user.id)
     .single()
 
   const nombreReal = profile?.full_name || profile?.email?.split('@')[0] || "Usuario Registrado"
 
-  const historialConNombre = (ticket.historial ?? []).map(h => ({
-    ...h,
-    usuario: nombreReal
-  }))
+  const historialConNombre = (ticket.historial ?? []).map(h => ({ ...h, usuario: nombreReal }))
 
   const { error } = await supabase.from('tickets').insert({
     title: ticket.titulo,
@@ -101,20 +83,14 @@ export async function createTicketAction(ticket: Ticket) {
     comments: ticket.comentarios,
     user_id: user.id,
     image_url: ticket.imageUrl,
-    category: ticket.category || 'soporte'
+    category: ticket.category || 'soporte',
+    assigned_to: ticket.assigned_to || null 
   })
 
-  if (error) {
-    console.error("Error al crear ticket en DB:", error.message)
-    throw new Error(error.message)
-  }
-
+  if (error) throw new Error(error.message)
   if (ticket.prioridad === 'alta') {
-    const categoria = ticket.category || 'soporte';
-    const listaCorreos = await getDestinatariosAction(categoria);
-    if (listaCorreos.length > 0) {
-      enviarAlertaCorreo(ticket.titulo, ticket.descripcion, nombreReal, listaCorreos);
-    }
+    const listaCorreos = await getDestinatariosAction(ticket.category || 'soporte');
+    if (listaCorreos.length > 0) enviarAlertaCorreo(ticket.titulo, ticket.descripcion, nombreReal, listaCorreos);
   }
   
   revalidatePath('/ticket')
@@ -123,28 +99,18 @@ export async function createTicketAction(ticket: Ticket) {
 
 export async function getTicketsAction(): Promise<Ticket[]> {
   const supabase = await createClient()
-  
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return []
 
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('role')
-    .eq('id', user.id)
-    .single()
-  
+  const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).single()
   const userRoles = profile?.role || []
   const rolesAdmin = ['soporte', 'gerente', 'desarrollo', 'rrhh'] 
-  const esAdmin = userRoles.some((r: string) => rolesAdmin.includes(r))
+  const esAdmin = Array.isArray(userRoles) ? userRoles.some(r => rolesAdmin.includes(r)) : rolesAdmin.includes(userRoles);
 
   let query = supabase.from('tickets').select('*').order('created_at', { ascending: false })
-
-  if (!esAdmin) {
-    query = query.eq('user_id', user.id)
-  }
+  if (!esAdmin) query = query.eq('user_id', user.id)
 
   const { data, error } = await query
-
   if (error) return []
   
   return data.map((t: any) => ({
@@ -159,7 +125,8 @@ export async function getTicketsAction(): Promise<Ticket[]> {
     comentarios: t.comments || [],
     imageUrl: t.image_url,
     leido: true,
-    category: t.category || 'soporte'
+    category: t.category || 'soporte',
+    assigned_to: t.assigned_to
   }))
 }
 

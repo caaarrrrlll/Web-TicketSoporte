@@ -109,7 +109,7 @@ export default function TicketPage() {
 
   const getPriorityColor = (priority: string) => {
     switch(priority) {
-        case 'alta': return 'bg-red-500 shadow-[0_0_10px_rgba(239,68,68,0.4)]'; // Rojo brillante
+        case 'alta': return 'bg-red-500 shadow-[0_0_10px_rgba(239,68,68,0.4)]'; 
         case 'media': return 'bg-yellow-400'; 
         default: return 'bg-emerald-500'; 
     }

@@ -19,9 +19,8 @@ export interface Ticket {
   descripcion: string;
   prioridad: "alta" | "media" | "baja";
   estado: "pendiente" | "en_progreso" | "resuelto";
-  
   category?: string; 
-  
+  assigned_to?: string; 
   creadoPor: string;
   fechaCreacion: string;
   leido: boolean;

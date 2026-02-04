@@ -1,11 +1,11 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { createTicketAction } from "@/actions/ticketActions"; 
 import { createClient } from "@/utils/supabase/client"; 
 import { motion, AnimatePresence } from "framer-motion";
-import { FaExclamationTriangle, FaUpload, FaCheck, FaArrowLeft, FaSpinner, FaMagic } from "react-icons/fa"; 
+import { FaExclamationTriangle, FaUpload, FaCheck, FaArrowLeft, FaSpinner, FaMagic, FaClock, FaDollarSign, FaUserTie } from "react-icons/fa"; 
 import Link from "next/link";
 
 export default function CreateTicketPage() {
@@ -13,17 +13,34 @@ export default function CreateTicketPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isUploading, setIsUploading] = useState(false); 
   const [uploadSuccess, setUploadSuccess] = useState(false); 
+  
+  const [employees, setEmployees] = useState<any[]>([]);
 
   const [formData, setFormData] = useState({
     titulo: "",
     categoria: "soporte",
     descripcion: "",
     prioridad: "media", 
-    imageUrl: "" 
+    imageUrl: "",
+    empleadoEncargado: "" 
   });
 
-  const [showWarningModal, setShowWarningModal] = useState(false);
+  const [showWarningModal, setShowWarningModal] = useState(false); 
+  const [showScheduleModal, setShowScheduleModal] = useState(false); 
 
+  // --- CARGAR EMPLEADOS ---
+  useEffect(() => {
+    async function fetchEmployees() {
+        const supabase = createClient();
+        const { data, error } = await supabase.from('profiles').select('id, full_name, email');
+        if (!error && data) {
+            setEmployees(data);
+        }
+    }
+    fetchEmployees();
+  }, []);
+
+  // --- PRESETS ---
   const ticketPresets = [
     { label: "📶 Falla de Internet", title: "Sin conexión a Internet", cat: "soporte", desc: "No tengo acceso a la red ni a internet.", priority: "alta" },
     { label: "🖨️ Impresora Atascada", title: "Problema con Impresora", cat: "soporte", desc: "La impresora no responde o tiene papel atascado.", priority: "media" },
@@ -82,12 +99,12 @@ export default function CreateTicketPage() {
     setShowWarningModal(false);
   };
 
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    if (!formData.titulo || !formData.descripcion) return alert("Por favor completa los campos obligatorios");
-    if (isUploading) return alert("Espera a que termine de subir la imagen.");
-
+  // --- LÓGICA DE ENVÍO Y WHATSAPP ---
+  const procesarEnvio = async () => {
     setIsSubmitting(true);
+    setShowScheduleModal(false);
+    setShowWarningModal(false);
+
     try {
         const newTicket: any = {
             titulo: formData.titulo,
@@ -102,16 +119,40 @@ export default function CreateTicketPage() {
                 usuario: "Sistema" 
             }],
             comentarios: [],
-            imageUrl: formData.imageUrl || null
+            imageUrl: formData.imageUrl || null,
+            assigned_to: formData.empleadoEncargado || null 
         };
 
         await createTicketAction(newTicket);
+
+        // --- WHATSAPP LOCAL ---
+        const numeroGerente = "593995629164"; 
+        const mensaje = `🚨 *NUEVO TICKET CREADO*\n\n📌 *Título:* ${formData.titulo}\n⚠️ *Prioridad:* ${formData.prioridad.toUpperCase()}\n🏢 *Depto:* ${formData.categoria}\n\n_Por favor revisar sistema._`;
+        const urlWhatsapp = `https://wa.me/${numeroGerente}?text=${encodeURIComponent(mensaje)}`;
+        window.open(urlWhatsapp, '_blank');
+
         router.push("/dashboard");
     } catch (error) {
         alert("Error al crear ticket");
     } finally {
         setIsSubmitting(false);
     }
+  };
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!formData.titulo || !formData.descripcion) return alert("Por favor completa los campos obligatorios");
+    if (isUploading) return alert("Espera a que termine de subir la imagen.");
+
+    const horaActual = new Date().getHours();
+    const esHorarioLaboral = horaActual >= 8 && horaActual < 17; 
+
+    if (!esHorarioLaboral) {
+        setShowScheduleModal(true); 
+        return; 
+    }
+
+    await procesarEnvio();
   }
 
   return (
@@ -141,6 +182,8 @@ export default function CreateTicketPage() {
         </div>
 
         <form onSubmit={handleSubmit} className="p-8 space-y-6">
+            
+            {/* Presets */}
             <div>
                 <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2 flex items-center gap-1">
                     <FaMagic className="text-purple-500" /> Relleno Rápido (Sugerencias)
@@ -170,16 +213,35 @@ export default function CreateTicketPage() {
                 />
             </div>
 
-            <div>
-                <label className="block text-sm font-bold text-gray-700 mb-1">Departamento Responsable</label>
-                <select 
-                    value={formData.categoria}
-                    onChange={e => setFormData({...formData, categoria: e.target.value})}
-                    className="w-full p-3 border-2 border-gray-200 rounded-xl outline-none focus:border-blue-500 transition-colors font-medium text-gray-900 bg-white">
-                    <option value="soporte">🔧 Soporte Técnico (General)</option>
-                    <option value="desarrollo">💻 Desarrollo / Software</option>
-                    <option value="rrhh">👥 Recursos Humanos</option>
-                </select>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                    <label className="block text-sm font-bold text-gray-700 mb-1">Departamento Responsable</label>
+                    <select 
+                        value={formData.categoria}
+                        onChange={e => setFormData({...formData, categoria: e.target.value})}
+                        className="w-full p-3 border-2 border-gray-200 rounded-xl outline-none focus:border-blue-500 transition-colors font-medium text-gray-900 bg-white">
+                        <option value="soporte">🔧 Soporte Técnico (General)</option>
+                        <option value="desarrollo">💻 Desarrollo / Software</option>
+                        <option value="rrhh">👥 Recursos Humanos</option>
+                    </select>
+                </div>
+
+                <div>
+                    <label className="block text-sm font-bold text-gray-700 mb-1 flex items-center gap-1">
+                        <FaUserTie className="text-blue-600" /> Empleado Encargado
+                    </label>
+                    <select 
+                        value={formData.empleadoEncargado}
+                        onChange={e => setFormData({...formData, empleadoEncargado: e.target.value})}
+                        className="w-full p-3 border-2 border-gray-200 rounded-xl outline-none focus:border-blue-500 transition-colors font-medium text-gray-900 bg-white">
+                        <option value="">-- Seleccionar Empleado --</option>
+                        {employees.map((emp) => (
+                            <option key={emp.id} value={emp.id}>
+                                {emp.full_name || emp.email}
+                            </option>
+                        ))}
+                    </select>
+                </div>
             </div>
 
             <div>
@@ -245,25 +307,48 @@ export default function CreateTicketPage() {
       </motion.div>
 
       <AnimatePresence>
-        {showWarningModal && (
-            <>
-                <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 bg-black/60 z-50 backdrop-blur-sm" />
-                <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.9, opacity: 0 }} className="fixed inset-0 z-[60] flex items-center justify-center p-4 pointer-events-none">
-                    <div className="bg-white w-full max-w-sm rounded-2xl shadow-2xl p-6 pointer-events-auto border-t-8 border-red-600">
-                        <div className="flex flex-col items-center text-center">
-                            <div className="bg-red-100 text-red-600 p-4 rounded-full mb-4 text-3xl"><FaExclamationTriangle /></div>
-                            <h3 className="text-xl font-bold text-gray-900 mb-2">¿Estás seguro?</h3>
-                            <p className="text-gray-600 text-sm mb-6">
-                                Marcar este ticket como <span className="font-bold text-red-600">ALTA PRIORIDAD</span> enviará una notificación al personal. <br/><br/>
-                            </p>
-                            <div className="flex flex-col gap-3 w-full">
-                                <button onClick={() => setShowWarningModal(false)} className="w-full py-3 bg-red-600 hover:bg-red-700 text-white font-bold rounded-xl shadow-lg shadow-red-200 transition-colors">Sí</button>
-                                <button onClick={cancelHighPriority} className="w-full py-3 bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold rounded-xl transition-colors">Cancelar</button>
-                            </div>
+        {showWarningModal && !showScheduleModal && (
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 bg-black/60 z-50 backdrop-blur-sm flex items-center justify-center p-4">
+                <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.9, opacity: 0 }} className="bg-white w-full max-w-sm rounded-2xl shadow-2xl p-6 border-t-8 border-red-600">
+                    <div className="flex flex-col items-center text-center">
+                        <div className="bg-red-100 text-red-600 p-4 rounded-full mb-4 text-3xl"><FaExclamationTriangle /></div>
+                        <h3 className="text-xl font-bold text-gray-900 mb-2">¿Estás seguro?</h3>
+                        <p className="text-gray-600 text-sm mb-6">
+                            Marcar este ticket como <span className="font-bold text-red-600">ALTA PRIORIDAD</span> enviará una notificación al personal. <br/><br/>
+                        </p>
+                        <div className="flex flex-col gap-3 w-full">
+                            <button onClick={() => setShowWarningModal(false)} className="w-full py-3 bg-red-600 hover:bg-red-700 text-white font-bold rounded-xl shadow-lg shadow-red-200 transition-colors">Sí, es una emergencia</button>
+                            <button onClick={cancelHighPriority} className="w-full py-3 bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold rounded-xl transition-colors">Cancelar</button>
                         </div>
                     </div>
                 </motion.div>
-            </>
+            </motion.div>
+        )}
+
+        {showScheduleModal && (
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 bg-black/70 z-50 backdrop-blur-sm flex items-center justify-center p-4">
+                <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.9, opacity: 0 }} className="bg-white w-full max-w-sm rounded-2xl shadow-2xl p-6 border-t-8 border-amber-500">
+                    <div className="flex flex-col items-center text-center">
+                        <div className="bg-amber-100 text-amber-600 p-4 rounded-full mb-4 text-3xl"><FaClock /></div>
+                        <h3 className="text-xl font-bold text-gray-900 mb-1">Fuera de Horario Laboral</h3>
+                        <p className="text-amber-600 font-bold text-xs uppercase mb-4 tracking-wider">Servicio con Costo Adicional</p>
+                        
+                        <p className="text-gray-600 text-sm mb-6 leading-relaxed">
+                            Estás creando un ticket fuera del horario de atención (08:00 - 17:00).<br/>
+                            Esto generará un <span className="font-bold text-gray-900">cargo extra</span> en tu facturación mensual.
+                        </p>
+                        
+                        <div className="flex flex-col gap-3 w-full">
+                            <button onClick={procesarEnvio} className="w-full py-3 bg-amber-500 hover:bg-amber-600 text-white font-bold rounded-xl shadow-lg shadow-amber-200 transition-colors flex items-center justify-center gap-2">
+                                <FaDollarSign /> Aceptar Cargo y Crear
+                            </button>
+                            <button onClick={() => setShowScheduleModal(false)} className="w-full py-3 bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold rounded-xl transition-colors">
+                                Cancelar y Esperar
+                            </button>
+                        </div>
+                    </div>
+                </motion.div>
+            </motion.div>
         )}
       </AnimatePresence>
     </div>
